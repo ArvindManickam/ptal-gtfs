@@ -25,6 +25,11 @@ results/
 *.tif
 cache/
 
+# Local working docs (not part of the published repo)
+CLAUDE.md
+AGENTS.md
+docs/architecture.md
+
 # OS / editor
 .DS_Store
 Thumbs.db
