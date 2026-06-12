@@ -28,6 +28,7 @@ cache/
 # Local working docs (not part of the published repo)
 CLAUDE.md
 AGENTS.md
+PLAN.md
 docs/architecture.md
 
 # OS / editor
