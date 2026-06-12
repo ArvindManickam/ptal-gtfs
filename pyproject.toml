@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gtfs-ptal"
+version = "0.0.1"
+description = "Public Transport Accessibility Levels (PTAL) for Indian cities from GTFS and OpenStreetMap"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.10"
+authors = [{ name = "Arvind", email = "95000am@gmail.com" }]
+keywords = ["ptal", "gtfs", "openstreetmap", "accessibility", "public-transport", "india"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+# Declared now so the architecture is explicit; pinned properly in Phase 1.
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "geopandas>=0.14",
+    "shapely>=2.0",
+    "pyproj>=3.5",
+    "osmnx>=1.9",
+    "pandana>=0.7",
+    "partridge>=1.1",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+    "rich>=13.0",
+    "folium>=0.16",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov", "ruff>=0.4", "hypothesis"]
+docs = ["mkdocs-material", "mkdocstrings[python]"]
+
+[project.scripts]
+gtfs-ptal = "gtfs_ptal.cli:app"
+
+[project.urls]
+Documentation = "https://github.com/CHANGEME/gtfs-ptal#readme"
+Source = "https://github.com/CHANGEME/gtfs-ptal"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gtfs_ptal"]
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "NPY"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
