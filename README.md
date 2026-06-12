@@ -3,33 +3,26 @@
 **Public Transport Accessibility Levels (PTAL) for Indian cities, computed from GTFS and OpenStreetMap.**
 
 `gtfs-ptal` is a Python package that implements the Transport for London (TfL) PTAL
-methodology and extends it for Indian conditions — informal/intermediate public
-transport (IPT), heterogeneous walking environments, irregular headways, and
-city-specific service patterns. It takes a GTFS feed and an OSM extract as input and
-produces PTAL grids, maps, and reports for any city.
+methodology and extends it for Indian conditions — heterogeneous walking environments, irregular headways, and city-specific service patterns. It takes a GTFS feed and an OSM extract as input and produces PTAL grids, maps, and reports for any city.
 
 > **Status: planning / pre-alpha.** The methodology and architecture are being
-> finalised before implementation. See [PLAN.md](PLAN.md) for the roadmap.
+> finalised before implementation.
 
 ## Why this exists
 
 PTAL is a widely used, easily communicated measure of how well a location is served
 by public transport. TfL's method, however, assumes London-like conditions: formal
-scheduled services, reliable headways, uniform walkability. Indian cities differ in
-ways that materially change the result:
+scheduled services, reliable headways, uniform reliability factors for a mode, uniform walkability. Indian cities differ in ways that materially change the result:
 
-- A large share of trips are served by **IPT** (shared autos, e-rickshaws, minibuses)
-  that rarely appears in GTFS.
-- **Walking conditions** vary sharply — footpath availability, road-crossing barriers,
-  and walking speeds are not uniform.
+- A large share of trips are served by **IPT** (shared autos, e-rickshaws, minibuses) that rarely appears in GTFS.
+- **Walking conditions** vary sharply — footpath availability, road-crossing barriers, and walking speeds are not uniform.
 - **Headway irregularity** makes scheduled frequency a weaker proxy for waiting time.
 - Mode mixes (metro, suburban rail, BRT, city bus, IPT) need different access
   thresholds and reliability assumptions.
 
 `gtfs-ptal` keeps the TfL framework (walk time + average waiting time → equivalent
 doorstep frequency → accessibility index → PTAL band) but makes every parameter
-explicit and configurable, ships a calibrated **India profile**, and adds an IPT data
-layer for services without GTFS.
+explicit and configurable, ships a calibrated **India profile**, and adds an IPT data layer for services without GTFS.
 
 ## Planned features
 
@@ -67,9 +60,7 @@ result.plot_map("ptal.html")
 
 | Document | Contents |
 | --- | --- |
-| [PLAN.md](PLAN.md) | Roadmap, phases, and milestones |
 | [docs/methodology.md](docs/methodology.md) | The TfL PTAL method, formulas, and the Indian adaptations |
-| [docs/architecture.md](docs/architecture.md) | Package design, modules, data flow, scalability strategy |
 | [docs/data.md](docs/data.md) | Input data requirements — GTFS, OSM, IPT — and Indian data sources |
 
 ## Installation
