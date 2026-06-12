@@ -5,7 +5,8 @@ file; keep all agent guidance here so every tool reads the same instructions.)
 
 ## What this project is
 
-A Python package (library + CLI) computing Public Transport Accessibility Levels
+A library-first Python package (no CLI for now; one may be added once the
+library is stable) computing Public Transport Accessibility Levels
 (PTAL) for Indian cities from GTFS + OSM. TfL methodology, adapted for Indian
 conditions. GPL-3.0. Pre-alpha: currently in docs-first planning.
 

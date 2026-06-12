@@ -30,12 +30,15 @@ src/gtfs_ptal/
 │   ├── sap.py           # POI→stop walk times, route de-duplication
 │   ├── awt.py           # SWT / AWT / irregularity-based AWT
 │   └── ptal.py          # EDF, AI, banding
-├── outputs/
-│   ├── export.py        # GeoPackage / GeoParquet / GeoTIFF / CSV
-│   ├── maps.py          # folium HTML maps, PTAL colour scheme
-│   └── report.py        # run summary + run.yaml manifest
-└── cli.py               # typer app: compute, inspect, profile, map
+└── outputs/
+    ├── export.py        # GeoPackage / GeoParquet / GeoTIFF / CSV
+    ├── maps.py          # folium HTML maps, PTAL colour scheme
+    └── report.py        # run summary + run.yaml manifest
 ```
+
+The package is **library-first**: the public API (`PTALAnalysis`, `PTALResult`,
+`load_profile`) is the product. A thin CLI wrapper is deferred to a later phase
+and would sit on top of this API without changing it.
 
 ## Data flow
 
@@ -66,7 +69,6 @@ pandas/GeoPandas objects, exposed on the result for inspection and testing.
 | Shortest paths | `pandana` | contraction-hierarchy aggregate queries: nearest-N-POIs for 10⁵ origins in seconds — this is the scalability linchpin |
 | Geometry | `geopandas`/`shapely 2` | vectorised geometry ops |
 | Config | `pydantic` + YAML | validated, documented, user-extensible profiles |
-| CLI | `typer` + `rich` | typed commands, good UX |
 | Maps | `folium` | zero-server interactive HTML |
 
 ## Scalability strategy

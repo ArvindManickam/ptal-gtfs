@@ -46,12 +46,8 @@ layer for services without GTFS.
   designed to handle metropolitan-scale grids (lakhs of grid points).
 - **Outputs** — PTAL grid as GeoPackage/GeoParquet/GeoTIFF, interactive HTML maps,
   ward/zone aggregations, and summary reports.
-- **Two interfaces** — a Python API for researchers and a CLI for planners:
-
-```bash
-# CLI (planned)
-gtfs-ptal compute --gtfs city_gtfs.zip --osm city.osm.pbf --profile india --out results/
-```
+- **Simple Python API** — usable from a script or notebook in a few lines. (A CLI
+  wrapper may be added in a later phase, once the library is stable.)
 
 ```python
 # Python API (planned)

@@ -1,8 +1,9 @@
 # Project Plan — gtfs-ptal
 
-Goal: a scalable, well-documented Python package (library + CLI) that computes PTAL
-for Indian cities from GTFS + OSM, faithful to the TfL method by default and
-explicitly parameterised for Indian conditions.
+Goal: a scalable, well-documented Python package that computes PTAL for Indian
+cities from GTFS + OSM, faithful to the TfL method by default and explicitly
+parameterised for Indian conditions. Library-first and simple: usable from a
+script or notebook; a CLI wrapper is deferred until the library is stable.
 
 Guiding principles:
 
@@ -43,8 +44,8 @@ Load and validate the three inputs into clean internal representations.
 - [ ] Integrate any existing user scripts that cover these steps.
 - [ ] Tests with a small fixture feed + OSM clip.
 
-**Milestone M1:** `gtfs-ptal inspect` CLI command prints a validated summary of a
-real Indian GTFS feed (routes, stops, modes, peak frequencies).
+**Milestone M1:** a `gtfs_ptal.inspect(...)` function returns a validated summary
+of a real Indian GTFS feed (routes, stops, modes, peak frequencies).
 
 ## Phase 2 — PTAL engine (TfL-faithful)
 
@@ -85,12 +86,16 @@ city, with a written analysis of the differences.
       population raster is supplied.
 - [ ] Summary report (HTML/Markdown) per run.
 
-## Phase 5 — CLI & user experience
+## Phase 5 — User experience & reproducibility
 
-- [ ] `gtfs-ptal compute | inspect | profile | map` commands (typer).
 - [ ] Run manifest: every output directory gets a `run.yaml` recording inputs,
       profile, parameters, package version — full reproducibility.
 - [ ] Helpful errors for the common GTFS quality problems in Indian feeds.
+- [ ] Tutorial notebook showing the full library workflow on a real city.
+
+> **CLI: deferred.** The package is library-first; a thin CLI wrapper
+> (`gtfs-ptal compute ...`) may be added after the library API is stable
+> (post Phase 6), if there is demand. Nothing in the design blocks it.
 
 ## Phase 6 — Scalability & quality
 
@@ -101,7 +106,7 @@ city, with a written analysis of the differences.
 
 ## Phase 7 — Release & case study
 
-- [ ] Full API docs (mkdocs-material), tutorial notebook for one Indian city.
+- [ ] Full API docs (mkdocs-material).
 - [ ] `CITATION.cff`, Zenodo DOI.
 - [ ] Publish to PyPI; announce.
 
