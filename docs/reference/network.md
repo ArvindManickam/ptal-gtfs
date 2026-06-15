@@ -8,7 +8,7 @@ stops into one routable network. This is the network-distance basis the PTAL eng
 They pull the geo stack (`osmnx`, `geopandas`, `pandana`, …), so they are imported from
 their submodules rather than the lightweight top-level package.
 
-## End-to-end example
+## With a boundary file
 
 ```python
 from ptal_gtfs import load_feeds, FeedSource
@@ -16,8 +16,8 @@ from ptal_gtfs.grid import load_boundary, make_grid
 from ptal_gtfs.io.osm import build_walk_graph
 from ptal_gtfs.network import build_walk_network, nearest_stops
 
-# 1. Study area — a boundary file, a place name, or the GTFS hull
-area = load_boundary("data/delhi_boundary.geojson")     # or "New Delhi, India"
+# 1. Study area — a boundary polygon file, or the GTFS hull (boundary_from_stops)
+area = load_boundary("data/delhi_boundary.geojson")
 
 # 2. POI grid over the area (metres; default 100 m spacing)
 grid = make_grid(area, spacing_m=100)
@@ -32,6 +32,31 @@ walk = build_walk_network(graph, grid, stops, k_centroid=3, k_stop=1)
 # 5. Nearest stops within an 8-minute bus walk (~640 m) for every grid point
 sap = nearest_stops(walk, max_walk_m=640, max_n=5)      # poi_id, stop_id, walk_m, rank
 ```
+
+## Without a boundary file (GTFS stops hull)
+
+When you don't have a boundary file, derive the study area from the GTFS stops
+themselves — their convex hull, buffered (default 500 m):
+
+```python
+from ptal_gtfs import load_feeds, FeedSource
+from ptal_gtfs.grid import boundary_from_stops, make_grid
+from ptal_gtfs.io.osm import build_walk_graph
+from ptal_gtfs.network import build_walk_network, nearest_stops
+
+# 1. Load GTFS first, then derive the study area from the stops
+stops = load_feeds([FeedSource("dtc", "data/dtc_gtfs.zip")], "2024-06-17").stops
+area = boundary_from_stops(stops, buffer_m=500)
+
+# 2-5. Same as the boundary-file flow
+grid = make_grid(area, spacing_m=100)
+graph = build_walk_graph(area)
+walk = build_walk_network(graph, grid, stops, k_centroid=3, k_stop=1)
+sap = nearest_stops(walk, max_walk_m=640, max_n=5)
+```
+
+The hull spans **all** stops, so for a city-wide feed this builds the walk network for
+the whole service-area footprint — fine, just larger than a tight boundary.
 
 ## How it fits together
 

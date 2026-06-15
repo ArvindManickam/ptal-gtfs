@@ -109,8 +109,8 @@ How the abstract method maps onto the input data:
   grid point to every candidate stop computed with a high-performance shortest-path
   engine. Crow-fly distance with a detour factor is available
   as a fallback/QA mode, never the default.
-- **Grid** — generated from a user boundary, a named place (geocoded), or the GTFS
-  convex hull; default spacing 100 m, configurable.
+- **Grid** — generated from a user boundary polygon or the GTFS convex hull; default
+  spacing 100 m, configurable.
 
 ---
 

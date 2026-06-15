@@ -1,9 +1,8 @@
 """Study area (boundary) and POI grid generation.
 
-The study area is a polygon — supplied as a file, a geocoded place name, or derived
-from the GTFS stops — that bounds where PTAL is computed. A regular point grid over the
-area provides the Points of Interest (POIs) for which PTAL is evaluated (methodology
-§1.1, default 100 m spacing).
+The study area is a polygon — supplied as a file or derived from the GTFS stops — that
+bounds where PTAL is computed. A regular point grid over the area provides the Points of
+Interest (POIs) for which PTAL is evaluated (methodology §1.1, default 100 m spacing).
 
 Geometry is held in two coordinate systems: WGS84 (lon/lat, ``EPSG:4326``) for I/O, and
 a metric UTM CRS (auto-selected from the area) for grid spacing and distances in metres.
@@ -56,24 +55,25 @@ def _study_area_from_gdf(gdf: gpd.GeoDataFrame) -> StudyArea:
 
 
 def load_boundary(source: str | Path) -> StudyArea:
-    """Load a study-area boundary from a polygon file or a place name.
+    """Load a study-area boundary from a polygon file.
 
     Parameters
     ----------
     source:
-        Path to a polygon file (GeoJSON/GPKG/shapefile), or a place name to geocode
-        (e.g. ``"Bengaluru, India"``) via OpenStreetMap/Nominatim.
+        Path to a polygon file (GeoJSON/GPKG/shapefile, or any vector format GeoPandas
+        can read). Multiple features are dissolved into a single boundary.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``source`` does not exist.
     """
-    path = Path(source) if not isinstance(source, Path) else source
-    if path.exists():
-        gdf = gpd.read_file(path)
-        if gdf.crs is None:
-            gdf = gdf.set_crs(WGS84)
-        return _study_area_from_gdf(gdf)
-
-    import osmnx as ox
-
-    gdf = ox.geocode_to_gdf(str(source))  # returns WGS84
+    path = Path(source)
+    if not path.exists():
+        raise FileNotFoundError(f"boundary file not found: {path}")
+    gdf = gpd.read_file(path)
+    if gdf.crs is None:
+        gdf = gdf.set_crs(WGS84)
     return _study_area_from_gdf(gdf)
 
 
