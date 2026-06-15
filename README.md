@@ -59,8 +59,20 @@ result.plot_map("ptal.html")
 
 ## Documentation
 
-Full docs (MkDocs + Material, hosted on Read the Docs once the repo is public);
-build them locally with `pip install -r docs/requirements.txt && mkdocs serve`.
+**Detailed documentation:** <https://ptal-gtfs.readthedocs.io/en/latest/> — built
+with MkDocs + Material (build locally with
+`pip install -r docs/requirements.txt && mkdocs serve`).
+
+**Live demonstration:** <https://ptal.netlify.app/>
+
+**Interactive presentations:**
+
+- [What is ptal-gtfs?](https://ptal-gtfs.netlify.app/main/)
+- [PTAL explained](https://ptal-gtfs.netlify.app/what-is-ptal/)
+- [The computation, step by step](https://ptal-gtfs.netlify.app/methodology/)
+- [TfL vs India profile](https://ptal-gtfs.netlify.app/city-profile/)
+
+In-repo reference docs:
 
 | Document | Contents |
 | --- | --- |
