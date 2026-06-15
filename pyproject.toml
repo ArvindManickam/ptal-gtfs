@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gtfs-ptal"
+name = "ptal-gtfs"
 version = "0.0.1"
 description = "Public Transport Accessibility Levels (PTAL) for Indian cities from GTFS and OpenStreetMap"
 readme = "README.md"
@@ -38,11 +38,11 @@ dev = ["pytest>=8.0", "pytest-cov", "ruff>=0.4", "hypothesis"]
 docs = ["mkdocs-material", "mkdocstrings[python]"]
 
 [project.urls]
-Documentation = "https://github.com/CHANGEME/gtfs-ptal#readme"
-Source = "https://github.com/CHANGEME/gtfs-ptal"
+Documentation = "https://github.com/CHANGEME/ptal-gtfs#readme"
+Source = "https://github.com/CHANGEME/ptal-gtfs"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gtfs_ptal"]
+packages = ["src/ptal_gtfs"]
 
 [tool.ruff]
 line-length = 99

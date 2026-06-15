@@ -1,6 +1,6 @@
 # Methodology
 
-This document is the **source of truth** for what `gtfs-ptal` computes. Code
+This document is the **source of truth** for what `ptal-gtfs` computes. Code
 implements this document; tests verify it. Changes to the method are made here first.
 
 It has two parts: the baseline TfL PTAL method (which the `default` profile must

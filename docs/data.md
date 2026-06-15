@@ -1,6 +1,6 @@
 # Input data
 
-`gtfs-ptal` needs three inputs (one optional):
+`ptal-gtfs` needs three inputs (one optional):
 
 | Input | Format | Required |
 | --- | --- | --- |

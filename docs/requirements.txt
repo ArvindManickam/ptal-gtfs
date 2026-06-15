@@ -1,0 +1,5 @@
+# Documentation build dependencies (kept in sync with the [docs] extra in
+# pyproject.toml). Used for local `mkdocs serve` and the Read the Docs build,
+# so the docs can build before the package itself is importable.
+mkdocs-material>=9.5
+mkdocstrings[python]>=0.25
