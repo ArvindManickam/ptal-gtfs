@@ -12,12 +12,8 @@ mkdocs:
 
 python:
   install:
-    # For now, only the docs tools are needed (no package code yet).
+    # Only the docs tools are needed. The package itself is NOT installed here:
+    # mkdocstrings reads the source statically via `paths: [src]` in mkdocs.yml, so
+    # the API reference renders without pulling in the heavy GIS dependencies (and
+    # without needing pandana to build on Read the Docs).
     - requirements: docs/requirements.txt
-    # Once src/ptal_gtfs exists and the API reference uses `:::` directives,
-    # also install the package so mkdocstrings can import it — replace the line
-    # above (or add) the following:
-    #   - method: pip
-    #     path: .
-    #     extra_requirements:
-    #       - docs

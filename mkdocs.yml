@@ -36,6 +36,9 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          # Point griffe at the src/ layout so it can parse the package statically,
+          # without installing it (or its heavy GIS dependencies) on Read the Docs.
+          paths: [src]
           options:
             docstring_style: numpy
             show_source: true
