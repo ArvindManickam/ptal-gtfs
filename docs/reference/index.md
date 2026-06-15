@@ -12,6 +12,10 @@
   feeds, validate them, build the peak-window frequency table, report data-quality
   problems, and profile a feed's statistics/distributions: `FeedSource`, `load_feed`,
   `load_feeds`, `inspect`, `check_feed`, `profile_feed`, `profile_feeds`.
+- **[Walk network](network.md)** (`ptal_gtfs.grid`, `ptal_gtfs.io.osm`,
+  `ptal_gtfs.network`) — load a study-area boundary, generate the POI grid, build the OSM
+  walk graph, and wire centroids/stops into one routable pandana network:
+  `load_boundary`, `make_grid`, `build_walk_graph`, `build_walk_network`, `nearest_stops`.
 
 ## Planned surface
 

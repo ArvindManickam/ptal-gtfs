@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "mini study area" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [77.588, 12.968],
+            [77.594, 12.968],
+            [77.594, 12.974],
+            [77.588, 12.974],
+            [77.588, 12.968]
+          ]
+        ]
+      }
+    }
+  ]
+}

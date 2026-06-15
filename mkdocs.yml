@@ -67,3 +67,4 @@ nav:
   - API reference:
       - Overview: reference/index.md
       - GTFS loading: reference/gtfs.md
+      - Walk network: reference/network.md

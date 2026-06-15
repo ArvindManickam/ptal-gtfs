@@ -18,10 +18,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: GIS",
 ]
 
-# Declared now so the architecture is explicit; pinned properly in Phase 1.
+# numpy is capped <2 (and pandas <3 to match) because pandana 0.7 ships a numpy-1.x
+# compiled extension and fails to import under numpy 2. Revisit if pandana gains a
+# numpy-2 build.
 dependencies = [
-    "pandas>=2.0",
-    "numpy>=1.24",
+    "pandas>=2.0,<3",
+    "numpy>=1.24,<2",
     "geopandas>=0.14",
     "shapely>=2.0",
     "pyproj>=3.5",
