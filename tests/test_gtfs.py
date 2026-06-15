@@ -27,6 +27,7 @@ from ptal_gtfs import (
     inspect,
     load_feed,
     load_feeds,
+    profile_feed,
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_gtfs"
@@ -150,6 +151,7 @@ def test_invalid_peak_window_rejected():
     with pytest.raises(ValueError):
         load_feed(FeedSource("bus", FIXTURE), SERVICE_DATE, peak_start="09:15", peak_end="08:15")
 
+
 def test_missing_required_file_raises(tmp_path):
     # A directory with only stops.txt must fail validation with a clear message.
     (tmp_path / "stops.txt").write_text("stop_id,stop_lat,stop_lon\nS1,12.0,77.0\n")
@@ -215,3 +217,42 @@ def test_check_feed_detects_quality_issues(tmp_path):
     assert "duplicate_id" in codes
     assert "bad_coords" in codes
     assert "blank_direction" in codes
+
+
+# --- profile_feed (descriptive stats) ----------------------------------------------
+
+
+def test_profile_feed_totals_and_modes():
+    prof = profile_feed(FeedSource("bus", FIXTURE), SERVICE_DATE)
+    assert prof.totals["n_stops"] == 4
+    assert prof.totals["n_routes"] == 2
+    # Active trips on the Wednesday: T1..T8 (T9 is weekend-only).
+    assert prof.totals["n_trips_active"] == 8
+    by_mode = dict(zip(prof.by_mode["mode"], prof.by_mode["n_routes"], strict=True))
+    assert by_mode == {"bus": 1, "rail": 1}
+
+
+def test_profile_feed_hourly_counts_all_active_departures():
+    prof = profile_feed(FeedSource("bus", FIXTURE), SERVICE_DATE)
+    # 8 active trips x 2 stop_times each = 16 departures across the day.
+    assert int(prof.hourly_departures["n_departures"].sum()) == 16
+    # All fixture departures are in the 08:00 and 09:00 hours.
+    assert set(prof.hourly_departures["hour"]) <= {8, 9}
+
+
+def test_profile_feed_weekday_trips_respect_calendar_exceptions():
+    prof = profile_feed(FeedSource("bus", FIXTURE), SERVICE_DATE)
+    wk = dict(zip(prof.weekday_trips["weekday"], prof.weekday_trips["n_trips"], strict=True))
+    assert wk["Mon"] == 8  # normal WEEK service
+    assert wk["Thu"] == 0  # WEEK service removed on 2024-01-04 via calendar_dates
+    assert wk["Fri"] == 9  # WEEK (8) + WEEKEND added on 2024-01-05 (T9)
+
+
+def test_profile_feed_distributions_present():
+    prof = profile_feed(FeedSource("bus", FIXTURE), SERVICE_DATE)
+    # Both routes run in the peak, so the service-level bands account for 2 routes.
+    assert int(prof.service_level_bands["n_routes"].sum()) == 2
+    assert not prof.routes_per_stop.empty
+    assert not prof.stops_per_route.empty
+    assert prof.extent["min_lat"] <= prof.extent["max_lat"]
+    assert "p50" in prof.headway_percentiles

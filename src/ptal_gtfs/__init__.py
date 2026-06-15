@@ -11,6 +11,7 @@ from __future__ import annotations
 from .io.gtfs import (
     Feed,
     FeedIssue,
+    FeedProfile,
     FeedReport,
     FeedSource,
     GtfsData,
@@ -19,6 +20,8 @@ from .io.gtfs import (
     inspect,
     load_feed,
     load_feeds,
+    profile_feed,
+    profile_feeds,
 )
 
 __version__ = "0.0.1"
@@ -26,6 +29,7 @@ __version__ = "0.0.1"
 __all__ = [
     "Feed",
     "FeedIssue",
+    "FeedProfile",
     "FeedReport",
     "FeedSource",
     "GtfsData",
@@ -34,5 +38,7 @@ __all__ = [
     "inspect",
     "load_feed",
     "load_feeds",
+    "profile_feed",
+    "profile_feeds",
     "__version__",
 ]

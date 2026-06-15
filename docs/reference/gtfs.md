@@ -80,6 +80,32 @@ blank `direction_id`, bad coordinates, duplicate ids, dangling references) and *
 (calendar span, active-trip count, after-midnight service, unmapped `route_type`).
 `report.ok`, `report.errors` and `report.warnings` make it easy to gate a pipeline.
 
+## Profiling a feed
+
+`profile_feed()` / `profile_feeds()` compute descriptive statistics and distributions for
+a service date — useful for understanding a city's network before computing PTAL (and for
+choosing the peak window from the actual departures-by-hour curve rather than assuming
+TfL's single hour):
+
+```python
+from ptal_gtfs import FeedSource, profile_feeds
+
+prof = profile_feeds(
+    [FeedSource("dtc", "data/dtc_gtfs.zip"), FeedSource("dmrc", "data/dmrc_gtfs.zip")],
+    service_date="2024-06-17",
+)
+print(prof)                 # readable text report (incl. an hour-of-day histogram)
+prof.by_mode               # routes / stops / trips / median headway per mode
+prof.hourly_departures     # hour, mode, n_departures across the whole service day
+prof.routes_per_stop       # interchange richness (distinct routes per stop)
+```
+
+The `FeedProfile` carries each result as a tidy frame/dict for your own plotting:
+`totals`, `by_mode`, `hourly_departures`, `weekday_trips`, `headway_percentiles`,
+`service_level_bands`, `routes_per_stop`, `stops_per_route`, and `extent` (bounding box +
+centroid). Actual charts are deferred to the visualisation phase; the report uses a simple
+text histogram for the hour-of-day curve.
+
 ## What you get back
 
 `load_feeds(...)` returns a [`GtfsData`](#ptal_gtfs.io.gtfs.GtfsData) with three pandas
@@ -117,9 +143,12 @@ three frames.
         - load_feeds
         - inspect
         - check_feed
+        - profile_feed
+        - profile_feeds
         - Feed
         - GtfsData
         - FeedSummary
         - FeedReport
         - FeedIssue
+        - FeedProfile
         - GtfsValidationError

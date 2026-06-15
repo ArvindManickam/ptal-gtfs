@@ -645,6 +645,357 @@ def _fmt_date(yyyymmdd: int) -> str:
     return f"{s[0:4]}-{s[4:6]}-{s[6:8]}"
 
 
+def _fmt_time(seconds: int) -> str:
+    """Seconds-after-midnight to ``HH:MM`` (hours may exceed 24 for late service)."""
+    h, m = divmod(int(seconds) // 60, 60)
+    return f"{h:02d}:{m:02d}"
+
+
+# --------------------------------------------------------------------------------------
+# Descriptive profiling (stats & distributions)
+# --------------------------------------------------------------------------------------
+
+_WEEKDAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_HEADWAY_BAND_EDGES = [0, 5, 10, 15, 30, float("inf")]
+_HEADWAY_BAND_LABELS = ["<5", "5-10", "10-15", "15-30", "30+"]
+
+
+@dataclass
+class FeedProfile:
+    """Descriptive statistics and distributions for one or more feeds (see profile_feeds).
+
+    The attributes are tidy frames/dicts intended for inspection or plotting; ``str()``
+    renders a readable text report.
+    """
+
+    feeds: list[str]
+    service_date: _dt.date
+    peak_start: str
+    peak_end: str
+    totals: dict  # headline counts, service span, busiest hour
+    by_mode: pd.DataFrame  # mode, n_routes, n_stops, n_trips, median_headway_min
+    hourly_departures: pd.DataFrame  # hour, mode, n_departures (whole service day)
+    weekday_trips: pd.DataFrame  # weekday, n_trips (the service week of service_date)
+    headway_percentiles: dict  # peak headway p10..p90, min, max (minutes)
+    service_level_bands: pd.DataFrame  # headway band, n_routes (per-route best headway)
+    routes_per_stop: pd.DataFrame  # stop_id, n_routes (interchange richness)
+    stops_per_route: pd.DataFrame  # route_id, n_stops
+    extent: dict  # bounding box + centroid
+
+    def __str__(self) -> str:  # pragma: no cover - presentation only
+        t = self.totals
+        out: list[str] = []
+        out.append(f"GTFS profile — {', '.join(self.feeds)}")
+        out.append(
+            f"  service date {self.service_date} ({self.service_date.strftime('%A')}), "
+            f"peak {self.peak_start}-{self.peak_end}"
+        )
+        out.append(
+            f"  stops {t['n_stops']:,} | routes {t['n_routes']:,} | "
+            f"active trips {t['n_trips_active']:,} | "
+            f"served (route,dir,stop) {t['n_served_route_stops']:,}"
+        )
+        if t.get("first_departure"):
+            out.append(
+                f"  service span {t['first_departure']}-{t['last_departure']} | "
+                f"busiest hour {t['busiest_hour']:02d}:00"
+            )
+
+        out.append("\nBy mode:")
+        out.append(f"  {'mode':<10}{'routes':>8}{'stops':>8}{'trips':>9}{'med.hw':>10}")
+        for r in self.by_mode.itertuples(index=False):
+            hw = "  n/a" if pd.isna(r.median_headway_min) else f"{r.median_headway_min:.1f}m"
+            out.append(
+                f"  {str(r.mode):<10}{int(r.n_routes):>8}{int(r.n_stops):>8}"
+                f"{int(r.n_trips):>9}{hw:>10}"
+            )
+
+        out.append("\nDepartures by hour of day:")
+        hourly = self.hourly_departures.groupby("hour")["n_departures"].sum()
+        peak = hourly.max() if len(hourly) else 0
+        for hr in (
+            range(int(hourly.index.min()), int(hourly.index.max()) + 1) if len(hourly) else []
+        ):
+            n = int(hourly.get(hr, 0))
+            bar = "#" * round(40 * n / peak) if peak else ""
+            out.append(f"  {hr:02d}  {n:>8,}  {bar}")
+
+        out.append(
+            "\nTrips by weekday:  "
+            + "   ".join(
+                f"{r.weekday} {int(r.n_trips):,}"
+                for r in self.weekday_trips.itertuples(index=False)
+            )
+        )
+
+        p = self.headway_percentiles
+        out.append(
+            f"\nPeak headways (min): p10 {p['p10']:.1f} | median {p['p50']:.1f} | "
+            f"p90 {p['p90']:.1f} | min {p['min']:.1f} | max {p['max']:.1f}"
+        )
+        out.append(
+            "Routes by peak service level (best headway):  "
+            + " | ".join(
+                f"{r.band}: {int(r.n_routes)}"
+                for r in self.service_level_bands.itertuples(index=False)
+            )
+        )
+
+        rps = self.routes_per_stop["n_routes"]
+        spr = self.stops_per_route["n_stops"]
+        out.append(
+            f"\nRoutes per stop: median {rps.median():.0f} | p90 {rps.quantile(0.9):.0f} | "
+            f"max {int(rps.max())}"
+        )
+        out.append(
+            f"Stops per route: median {spr.median():.0f} | p90 {spr.quantile(0.9):.0f} | "
+            f"max {int(spr.max())}"
+        )
+
+        e = self.extent
+        out.append(
+            f"\nExtent: lat {e['min_lat']:.4f}..{e['max_lat']:.4f}, "
+            f"lon {e['min_lon']:.4f}..{e['max_lon']:.4f}"
+        )
+        return "\n".join(out)
+
+
+def profile_feed(
+    source: FeedSource,
+    service_date: _dt.date | str,
+    *,
+    peak_start: str = DEFAULT_PEAK_START,
+    peak_end: str = DEFAULT_PEAK_END,
+    mode_map: Mapping[int, str] | None = None,
+) -> FeedProfile:
+    """Descriptive statistics and distributions for a single feed (see :func:`profile_feeds`)."""
+    return profile_feeds(
+        [source], service_date, peak_start=peak_start, peak_end=peak_end, mode_map=mode_map
+    )
+
+
+def profile_feeds(
+    sources: Iterable[FeedSource],
+    service_date: _dt.date | str,
+    *,
+    peak_start: str = DEFAULT_PEAK_START,
+    peak_end: str = DEFAULT_PEAK_END,
+    mode_map: Mapping[int, str] | None = None,
+) -> FeedProfile:
+    """Profile one or more feeds: counts, per-mode breakdown and key distributions.
+
+    Computes, for the chosen service date: headline totals and service span; a per-mode
+    table; the whole-day departures-by-hour curve (useful for choosing the peak window);
+    trips by weekday; peak headway percentiles and per-route service-level bands;
+    interchange richness (routes per stop) and stops per route; and the spatial extent.
+
+    Each feed is read once and reduced to aggregates, so memory stays bounded even on
+    large feeds. The loop is over feeds, not grid points.
+    """
+    sources = list(sources)
+    if not sources:
+        raise ValueError("profile_feeds requires at least one FeedSource")
+    date = _coerce_date(service_date)
+    win_start = _hhmm_to_seconds(peak_start)
+    win_end = _hhmm_to_seconds(peak_end)
+    if win_end <= win_start:
+        raise ValueError(f"peak_end ({peak_end}) must be after peak_start ({peak_start})")
+    mm = dict(mode_map) if mode_map is not None else DEFAULT_ROUTE_TYPE_MAP
+
+    routes_parts, stops_parts, freq_parts, hourly_parts = [], [], [], []
+    rps_parts, spr_parts, tbm_parts, spans = [], [], [], []
+    weekday_total: pd.Series | None = None
+    n_trips_active = 0
+    feeds: list[str] = []
+
+    for src in sources:
+        reader = _Reader(src.path)
+        try:
+            tables = _read_tables(reader)
+        finally:
+            reader.close()
+        _validate(tables, feed_key=src.key)
+        _namespace_ids(tables, src.key)
+        feeds.append(src.key)
+
+        stops = tables["stops.txt"]
+        routes = tables["routes.txt"].copy()
+        trips = tables["trips.txt"]
+        stop_times = tables["stop_times.txt"]
+        calendar = tables.get("calendar.txt")
+        calendar_dates = tables.get("calendar_dates.txt")
+        freqs = tables.get("frequencies.txt")
+
+        routes["mode"] = _map_modes(routes["route_type"], mm)
+
+        active = _active_service_ids(calendar, calendar_dates, date)
+        active_trips = trips[trips["service_id"].isin(active)].copy()
+        n_trips_active += len(active_trips)
+
+        # Active stop_times tagged with their route and mode.
+        trip_meta = active_trips.merge(routes[["route_id", "mode"]], on="route_id", how="left")[
+            ["trip_id", "route_id", "mode"]
+        ]
+        st = stop_times.merge(trip_meta, on="trip_id", how="inner")
+        dep_sec = (
+            _parse_gtfs_time(st["departure_time"]) if "departure_time" in st.columns else None
+        )
+        if "arrival_time" in st.columns:
+            arr_sec = _parse_gtfs_time(st["arrival_time"])
+            dep_sec = arr_sec if dep_sec is None else dep_sec.fillna(arr_sec)
+        st = st.assign(dep_sec=dep_sec).dropna(subset=["dep_sec"])
+        st["dep_sec"] = st["dep_sec"].astype("int64")
+
+        # Whole-day departures by hour and mode.
+        hour = (st["dep_sec"] // 3600).astype(int)
+        hourly_parts.append(
+            st.assign(hour=hour)
+            .groupby(["hour", "mode"])
+            .size()
+            .rename("n_departures")
+            .reset_index()
+        )
+        # Interchange richness and route span (distinct routes per stop / stops per route).
+        rps_parts.append(
+            st[["stop_id", "route_id"]]
+            .drop_duplicates()
+            .groupby("stop_id")
+            .size()
+            .rename("n_routes")
+            .reset_index()
+        )
+        spr_parts.append(
+            st[["route_id", "stop_id"]]
+            .drop_duplicates()
+            .groupby("route_id")
+            .size()
+            .rename("n_stops")
+            .reset_index()
+        )
+        tbm_parts.append(trip_meta.groupby("mode").size().rename("n_trips").reset_index())
+        if len(st):
+            spans.append((int(st["dep_sec"].min()), int(st["dep_sec"].max())))
+
+        # Peak frequencies (reusing the loader's logic), tagged with mode.
+        freq = _compute_frequencies(stop_times, active_trips, freqs, win_start, win_end)
+        freq_parts.append(freq.merge(routes[["route_id", "mode"]], on="route_id", how="left"))
+
+        routes_parts.append(routes.assign(feed=src.key))
+        stops_parts.append(stops.assign(feed=src.key))
+
+        # Trips per weekday across the service week containing service_date.
+        monday = date - _dt.timedelta(days=date.weekday())
+        wk = pd.Series(
+            {
+                _WEEKDAY_NAMES[i]: int(
+                    trips["service_id"]
+                    .isin(
+                        _active_service_ids(
+                            calendar, calendar_dates, monday + _dt.timedelta(days=i)
+                        )
+                    )
+                    .sum()
+                )
+                for i in range(7)
+            }
+        )
+        weekday_total = wk if weekday_total is None else weekday_total.add(wk, fill_value=0)
+
+    routes_all = pd.concat(routes_parts, ignore_index=True)
+    stops_all = pd.concat(stops_parts, ignore_index=True)
+    freq_all = pd.concat(freq_parts, ignore_index=True)
+    hourly_all = (
+        pd.concat(hourly_parts, ignore_index=True)
+        .groupby(["hour", "mode"], as_index=False)["n_departures"]
+        .sum()
+    )
+    rps_all = pd.concat(rps_parts, ignore_index=True)
+    spr_all = pd.concat(spr_parts, ignore_index=True)
+    tbm_all = (
+        pd.concat(tbm_parts, ignore_index=True).groupby("mode", as_index=False)["n_trips"].sum()
+    )
+
+    # Per-mode breakdown.
+    n_routes = routes_all.groupby("mode").size().rename("n_routes")
+    n_stops = (
+        freq_all.drop_duplicates(["mode", "stop_id"]).groupby("mode").size().rename("n_stops")
+    )
+    median_hw = freq_all.groupby("mode")["headway_min"].median().rename("median_headway_min")
+    by_mode = pd.concat([n_routes, n_stops, median_hw], axis=1).reset_index()
+    by_mode = by_mode.merge(tbm_all, on="mode", how="left")
+    by_mode = by_mode[["mode", "n_routes", "n_stops", "n_trips", "median_headway_min"]]
+    by_mode[["n_stops", "n_trips"]] = by_mode[["n_stops", "n_trips"]].fillna(0)
+
+    # Weekday table, in calendar order.
+    weekday_total = weekday_total.reindex(_WEEKDAY_NAMES)
+    weekday_trips = (
+        weekday_total.astype(int).rename_axis("weekday").rename("n_trips").reset_index()
+    )
+
+    # Peak headway distribution.
+    hw = freq_all["headway_min"]
+    headway_percentiles = {
+        name: (float(hw.quantile(q)) if len(hw) else float("nan"))
+        for name, q in (("p10", 0.1), ("p25", 0.25), ("p50", 0.5), ("p75", 0.75), ("p90", 0.9))
+    }
+    headway_percentiles["min"] = float(hw.min()) if len(hw) else float("nan")
+    headway_percentiles["max"] = float(hw.max()) if len(hw) else float("nan")
+
+    # Routes grouped by their best (smallest) peak headway.
+    route_min_hw = freq_all.groupby("route_id")["headway_min"].min()
+    bands = pd.cut(
+        route_min_hw, bins=_HEADWAY_BAND_EDGES, labels=_HEADWAY_BAND_LABELS, right=False
+    )
+    service_level_bands = (
+        bands.value_counts()
+        .reindex(_HEADWAY_BAND_LABELS, fill_value=0)
+        .rename_axis("band")
+        .rename("n_routes")
+        .reset_index()
+    )
+
+    # Spatial extent.
+    lat = pd.to_numeric(stops_all["stop_lat"], errors="coerce")
+    lon = pd.to_numeric(stops_all["stop_lon"], errors="coerce")
+    extent = {
+        "min_lat": float(lat.min()),
+        "max_lat": float(lat.max()),
+        "min_lon": float(lon.min()),
+        "max_lon": float(lon.max()),
+        "centroid_lat": float(lat.mean()),
+        "centroid_lon": float(lon.mean()),
+    }
+
+    overall_span = (min(s[0] for s in spans), max(s[1] for s in spans)) if spans else None
+    hour_overall = hourly_all.groupby("hour")["n_departures"].sum()
+    totals = {
+        "feeds": feeds,
+        "n_stops": int(len(stops_all)),
+        "n_routes": int(len(routes_all)),
+        "n_trips_active": int(n_trips_active),
+        "n_served_route_stops": int(len(freq_all)),
+        "first_departure": _fmt_time(overall_span[0]) if overall_span else None,
+        "last_departure": _fmt_time(overall_span[1]) if overall_span else None,
+        "busiest_hour": int(hour_overall.idxmax()) if len(hour_overall) else None,
+    }
+
+    return FeedProfile(
+        feeds=feeds,
+        service_date=date,
+        peak_start=peak_start,
+        peak_end=peak_end,
+        totals=totals,
+        by_mode=by_mode,
+        hourly_departures=hourly_all,
+        weekday_trips=weekday_trips,
+        headway_percentiles=headway_percentiles,
+        service_level_bands=service_level_bands,
+        routes_per_stop=rps_all,
+        stops_per_route=spr_all,
+        extent=extent,
+    )
+
+
 # --------------------------------------------------------------------------------------
 # Reading GTFS tables (from a .zip or a directory)
 # --------------------------------------------------------------------------------------
