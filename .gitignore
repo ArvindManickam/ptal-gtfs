@@ -25,6 +25,11 @@ results/
 *.tif
 cache/
 
+# Real GTFS/OSM city data dropped into tests/fixtures for manual runs is never
+# committed; only the tiny synthetic feed (mini_gtfs) is tracked.
+tests/fixtures/*/
+!tests/fixtures/mini_gtfs/
+
 # Local working docs (not part of the published repo)
 CLAUDE.md
 AGENTS.md
