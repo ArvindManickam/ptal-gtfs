@@ -5,10 +5,22 @@ from __future__ import annotations
 import networkx as nx
 import numpy as np
 import pandas as pd
+import pytest
 from pyproj import Transformer
 from scipy.spatial import cKDTree
 
 from ptal_gtfs.network import _connectors, build_walk_network, nearest_stops
+
+
+def _line_graph(max_x: int, step: int = 100) -> nx.MultiDiGraph:
+    """A straight chain of nodes from x=0 to x=max_x, ``step`` metres apart."""
+    graph = nx.MultiDiGraph(crs="EPSG:32643")
+    xs = list(range(0, max_x + step, step))
+    for i, x in enumerate(xs):
+        graph.add_node(i, x=float(x), y=0.0)
+    for i in range(len(xs) - 1):
+        graph.add_edge(i, i + 1, length=float(step))
+    return graph
 
 
 def _chain_graph() -> nx.MultiDiGraph:
@@ -60,3 +72,39 @@ def test_nearest_stops_respects_max_walk_distance():
     wn = build_walk_network(_chain_graph(), centroids, stops, k_centroid=1, k_stop=1)
     # 210 m path is beyond a 150 m limit -> no stop returned.
     assert nearest_stops(wn, max_walk_m=150, max_n=1).empty
+
+
+def _two_mode_setup():
+    """A bus stop ~310 m and a metro stop ~1510 m from a centroid at (0, 5)."""
+    graph = _line_graph(1500)
+    centroids = pd.DataFrame({"poi_id": [0], "x": [0.0], "y": [5.0]})
+    stops = _stops_at([(300.0, 5.0), (1500.0, 5.0)])
+    stops["stop_id"] = ["bus_stop", "metro_stop"]
+    wn = build_walk_network(graph, centroids, stops, k_centroid=1, k_stop=1)
+    stop_modes = pd.DataFrame({"stop_id": ["bus_stop", "metro_stop"], "mode": ["bus", "metro"]})
+    return wn, stop_modes
+
+
+def test_nearest_stops_per_mode_applies_per_mode_distance():
+    wn, stop_modes = _two_mode_setup()
+    res = nearest_stops(wn, {"bus": 500, "metro": 2000}, max_n=5, stop_modes=stop_modes)
+
+    got = dict(zip(res["stop_id"], res["mode"], strict=True))
+    assert got == {"bus_stop": "bus", "metro_stop": "metro"}
+    bus_d = res.loc[res.stop_id == "bus_stop", "walk_m"].iloc[0]
+    metro_d = res.loc[res.stop_id == "metro_stop", "walk_m"].iloc[0]
+    assert abs(bus_d - 310) < 1.0
+    assert abs(metro_d - 1510) < 1.0
+
+
+def test_nearest_stops_per_mode_drops_stop_beyond_its_threshold():
+    wn, stop_modes = _two_mode_setup()
+    # Metro path (~1510 m) exceeds a 1000 m metro limit -> only the bus stop remains.
+    res = nearest_stops(wn, {"bus": 500, "metro": 1000}, max_n=5, stop_modes=stop_modes)
+    assert set(res["stop_id"]) == {"bus_stop"}
+
+
+def test_nearest_stops_per_mode_requires_stop_modes():
+    wn, _ = _two_mode_setup()
+    with pytest.raises(ValueError):
+        nearest_stops(wn, {"bus": 500}, max_n=5)

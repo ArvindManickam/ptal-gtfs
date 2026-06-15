@@ -25,12 +25,14 @@ grid = make_grid(area, spacing_m=100)
 # 3. OSM pedestrian network for the area (Overpass download; cached under cache/)
 graph = build_walk_graph(area)                          # or source="walk.graphml"
 
-# 4. GTFS stops, then one unified routable network with virtual connectors
-stops = load_feeds([FeedSource("dtc", "data/dtc_gtfs.zip")], "2024-06-17").stops
-walk = build_walk_network(graph, grid, stops, k_centroid=3, k_stop=1)
+# 4. GTFS feed(s), then one unified routable network with virtual connectors
+gtfs = load_feeds([FeedSource("dtc", "data/dtc_gtfs.zip")], "2024-06-17")
+walk = build_walk_network(graph, grid, gtfs.stops, k_centroid=3, k_stop=3)
 
-# 5. Nearest stops within an 8-minute bus walk (~640 m) for every grid point
-sap = nearest_stops(walk, max_walk_m=640, max_n=5)      # poi_id, stop_id, walk_m, rank
+# 5. Nearest stops per grid point, with a per-mode access distance
+stop_modes = gtfs.frequencies[["stop_id", "mode"]].drop_duplicates()
+sap = nearest_stops(walk, {"bus": 500, "metro": 2000}, max_n=50, stop_modes=stop_modes)
+# -> poi_id, stop_id, walk_m, rank, mode   (a bare number also works: nearest_stops(walk, 640, 5))
 ```
 
 ## Without a boundary file (GTFS stops hull)
@@ -45,14 +47,15 @@ from ptal_gtfs.io.osm import build_walk_graph
 from ptal_gtfs.network import build_walk_network, nearest_stops
 
 # 1. Load GTFS first, then derive the study area from the stops
-stops = load_feeds([FeedSource("dtc", "data/dtc_gtfs.zip")], "2024-06-17").stops
-area = boundary_from_stops(stops, buffer_m=500)
+gtfs = load_feeds([FeedSource("dtc", "data/dtc_gtfs.zip")], "2024-06-17")
+area = boundary_from_stops(gtfs.stops, buffer_m=500)
 
 # 2-5. Same as the boundary-file flow
 grid = make_grid(area, spacing_m=100)
 graph = build_walk_graph(area)
-walk = build_walk_network(graph, grid, stops, k_centroid=3, k_stop=1)
-sap = nearest_stops(walk, max_walk_m=640, max_n=5)
+walk = build_walk_network(graph, grid, gtfs.stops, k_centroid=3, k_stop=3)
+stop_modes = gtfs.frequencies[["stop_id", "mode"]].drop_duplicates()
+sap = nearest_stops(walk, {"bus": 500, "metro": 2000}, max_n=50, stop_modes=stop_modes)
 ```
 
 The hull spans **all** stops, so for a city-wide feed this builds the walk network for
@@ -69,8 +72,10 @@ the whole service-area footprint — fine, just larger than a tight boundary.
 - **`build_walk_network`** adds grid centroids and stops to the graph as extra nodes,
   joined to their *k* nearest network nodes by **virtual connector edges** (centroids → 3,
   stops → `k_stop`), and builds one `pandana.Network`.
-- **`nearest_stops`** returns, for every grid point, the nearest `max_n` stops within
-  `max_walk_m` network metres — tidy `(poi_id, stop_id, walk_m, rank)` rows.
+- **`nearest_stops`** returns, for every grid point, the nearest `max_n` stops within the
+  access distance — a single value, or a per-mode `{mode: metres}` mapping (e.g. bus
+  500 m, metro 2000 m) given a `stop_modes` frame. Tidy
+  `(poi_id, stop_id, walk_m, rank[, mode])` rows.
 
 ## API — study area & grid
 

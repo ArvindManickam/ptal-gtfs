@@ -12,6 +12,7 @@ All coordinates are in the study area's metric CRS and all weights are metres.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import geopandas as gpd
@@ -156,43 +157,97 @@ def build_walk_network(
     )
 
 
-def nearest_stops(walk_network: WalkNetwork, max_walk_m: float, max_n: int) -> pd.DataFrame:
-    """Nearest ``max_n`` stops within ``max_walk_m`` (network metres) of each grid point.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Tidy ``poi_id``, ``stop_id``, ``walk_m``, ``rank`` rows; only reachable stops.
-    """
+def _query_category(
+    walk_network: WalkNetwork,
+    category: str,
+    max_dist: float,
+    max_n: int,
+    poi_x: pd.Series,
+    poi_y: pd.Series,
+) -> pd.DataFrame:
+    """Nearest-N POIs of one pandana category, reshaped to tidy per-grid-point rows."""
     net = walk_network.net
-    net.precompute(max_walk_m)
-
-    poi_x = pd.Series(
-        walk_network.stop_nodes["x"].to_numpy(), index=walk_network.stop_nodes["stop_id"]
-    )
-    poi_y = pd.Series(
-        walk_network.stop_nodes["y"].to_numpy(), index=walk_network.stop_nodes["stop_id"]
-    )
-    net.set_pois("stops", max_walk_m, max_n, poi_x, poi_y)
-
-    res = net.nearest_pois(max_walk_m, "stops", num_pois=max_n, include_poi_ids=True)
+    net.set_pois(category, max_dist, max_n, poi_x, poi_y)
+    res = net.nearest_pois(max_dist, category, num_pois=max_n, include_poi_ids=True)
 
     centroids = walk_network.centroid_nodes
     sub = res.reindex(centroids["node_id"].to_numpy())
     node_to_poi = pd.Series(centroids["poi_id"].to_numpy(), index=centroids["node_id"].to_numpy())
 
-    frames = []
-    for rank in range(1, max_n + 1):
-        frames.append(
-            pd.DataFrame(
-                {
-                    "poi_id": node_to_poi.loc[sub.index].to_numpy(),
-                    "stop_id": sub[f"poi{rank}"].to_numpy(),
-                    "walk_m": sub[rank].to_numpy(),
-                    "rank": rank,
-                }
-            )
+    frames = [
+        pd.DataFrame(
+            {
+                "poi_id": node_to_poi.loc[sub.index].to_numpy(),
+                "stop_id": sub[f"poi{rank}"].to_numpy(),
+                "walk_m": sub[rank].to_numpy(),
+                "rank": rank,
+            }
         )
+        for rank in range(1, max_n + 1)
+    ]
     out = pd.concat(frames, ignore_index=True)
-    out = out[out["walk_m"] < max_walk_m].dropna(subset=["stop_id"])
+    return out[out["walk_m"] < max_dist].dropna(subset=["stop_id"])
+
+
+def _stop_pois(walk_network: WalkNetwork, stop_ids) -> tuple[pd.Series, pd.Series]:
+    """The x/y of the given stop nodes as pandana POI series indexed by ``stop_id``."""
+    sn = walk_network.stop_nodes
+    if stop_ids is not None:
+        sn = sn[sn["stop_id"].isin(stop_ids)]
+    return (
+        pd.Series(sn["x"].to_numpy(), index=sn["stop_id"]),
+        pd.Series(sn["y"].to_numpy(), index=sn["stop_id"]),
+    )
+
+
+def nearest_stops(
+    walk_network: WalkNetwork,
+    max_walk_m: float | Mapping[str, float],
+    max_n: int,
+    *,
+    stop_modes: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Nearest ``max_n`` stops within a walk distance of each grid point.
+
+    Parameters
+    ----------
+    walk_network:
+        The unified network from :func:`build_walk_network`.
+    max_walk_m:
+        Either a single distance in metres applied to all stops (a quick primitive), or
+        a ``{mode: metres}`` mapping applying a per-mode access distance (e.g.
+        ``{"bus": 500, "metro": 2000}``). The per-mode form requires ``stop_modes``.
+    max_n:
+        Maximum number of stops returned per grid point (per mode, for the mapping form).
+    stop_modes:
+        Required for the per-mode form: a frame of ``stop_id``/``mode`` (e.g.
+        ``gtfs.frequencies[["stop_id", "mode"]].drop_duplicates()``). A stop serving
+        several modes is considered under each, at that mode's distance.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Tidy ``poi_id``, ``stop_id``, ``walk_m``, ``rank`` rows (plus ``mode`` for the
+        per-mode form); only stops reachable within the relevant distance.
+    """
+    if isinstance(max_walk_m, Mapping):
+        if stop_modes is None:
+            raise ValueError("stop_modes is required when max_walk_m is a per-mode mapping")
+        walk_network.net.precompute(max(max_walk_m.values()))
+        frames = []
+        for mode, dist in max_walk_m.items():
+            ids = stop_modes.loc[stop_modes["mode"] == mode, "stop_id"].unique()
+            poi_x, poi_y = _stop_pois(walk_network, ids)
+            if poi_x.empty:
+                continue
+            part = _query_category(walk_network, str(mode), float(dist), max_n, poi_x, poi_y)
+            part["mode"] = mode
+            frames.append(part)
+        columns = ["poi_id", "stop_id", "walk_m", "rank", "mode"]
+        out = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=columns)
+        return out.reset_index(drop=True)
+
+    walk_network.net.precompute(max_walk_m)
+    poi_x, poi_y = _stop_pois(walk_network, None)
+    out = _query_category(walk_network, "stops", float(max_walk_m), max_n, poi_x, poi_y)
     return out.reset_index(drop=True)
