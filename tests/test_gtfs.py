@@ -23,6 +23,7 @@ import pytest
 from ptal_gtfs import (
     FeedSource,
     GtfsValidationError,
+    check_feed,
     inspect,
     load_feed,
     load_feeds,
@@ -128,6 +129,23 @@ def test_load_from_zip(tmp_path):
     assert _freq(from_zip, "bus:R1", 0, "bus:S1") == _freq(from_dir, "bus:R1", 0, "bus:S1")
 
 
+def test_load_from_zip_with_wrapper_folder_and_macosx_junk(tmp_path):
+    # Real-world feeds often wrap the .txt files in a top-level folder and (when zipped
+    # on macOS) carry __MACOSX/._* resource-fork junk. The reader must see through both.
+    import zipfile
+
+    zip_path = tmp_path / "wrapped.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("FEED/", "")  # directory entry
+        for txt in FIXTURE.glob("*.txt"):
+            zf.write(txt, arcname=f"FEED/{txt.name}")
+            zf.writestr(f"FEED/__MACOSX/._{txt.name}", b"junk-resource-fork")
+
+    feed = load_feed(FeedSource("bus", zip_path), SERVICE_DATE)
+    assert _freq(feed, "bus:R1", 0, "bus:S1") == 3
+    assert set(feed.stops.stop_id) == {"bus:S1", "bus:S2", "bus:S3", "bus:S4"}
+
+
 def test_invalid_peak_window_rejected():
     with pytest.raises(ValueError):
         load_feed(FeedSource("bus", FIXTURE), SERVICE_DATE, peak_start="09:15", peak_end="08:15")
@@ -137,3 +155,63 @@ def test_missing_required_file_raises(tmp_path):
     (tmp_path / "stops.txt").write_text("stop_id,stop_lat,stop_lon\nS1,12.0,77.0\n")
     with pytest.raises(GtfsValidationError):
         load_feed(FeedSource("broken", tmp_path), SERVICE_DATE)
+
+
+# --- check_feed (quality report) ---------------------------------------------------
+
+
+def _codes(report):
+    return {i.code for i in report.issues}
+
+
+def test_check_feed_clean_fixture_has_no_errors_or_warnings():
+    report = check_feed(FeedSource("bus", FIXTURE), SERVICE_DATE)
+    assert report.ok
+    assert report.errors == []
+    assert report.warnings == []
+    # The clean fixture still reports informational items (calendar span, active trips).
+    assert "calendar_span" in _codes(report)
+    assert "active_trips" in _codes(report)
+
+
+def test_check_feed_flags_date_outside_calendar():
+    report = check_feed(FeedSource("bus", FIXTURE), "2030-01-01")
+    assert not report.ok
+    codes = _codes(report)
+    assert "date_out_of_range" in codes
+    assert "no_active_trips" in codes
+
+
+def test_check_feed_missing_required_file_is_error(tmp_path):
+    (tmp_path / "stops.txt").write_text("stop_id,stop_lat,stop_lon\nS1,12.0,77.0\n")
+    report = check_feed(FeedSource("broken", tmp_path))
+    assert not report.ok
+    assert all(i.level == "error" for i in report.errors)
+
+
+def test_check_feed_detects_quality_issues(tmp_path):
+    # Craft a tiny feed with: a duplicate stop_id, a (0,0) coordinate, and a
+    # direction_id column that is present but entirely blank.
+    (tmp_path / "stops.txt").write_text(
+        "stop_id,stop_name,stop_lat,stop_lon\n"
+        "A,Stop A,12.90,77.50\n"
+        "A,Stop A dup,12.91,77.51\n"
+        "B,Bad Coord,0,0\n"
+    )
+    (tmp_path / "routes.txt").write_text("route_id,route_short_name,route_type\nR,1,3\n")
+    (tmp_path / "trips.txt").write_text("route_id,service_id,trip_id,direction_id\nR,WK,T1,\n")
+    (tmp_path / "calendar.txt").write_text(
+        "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n"
+        "WK,1,1,1,1,1,1,1,20240101,20241231\n"
+    )
+    (tmp_path / "stop_times.txt").write_text(
+        "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
+        "T1,08:20:00,08:20:00,A,1\n"
+        "T1,08:30:00,08:30:00,B,2\n"
+    )
+
+    report = check_feed(FeedSource("messy", tmp_path))
+    codes = _codes(report)
+    assert "duplicate_id" in codes
+    assert "bad_coords" in codes
+    assert "blank_direction" in codes

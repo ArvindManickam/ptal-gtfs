@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from .io.gtfs import (
     Feed,
+    FeedIssue,
+    FeedReport,
     FeedSource,
     GtfsData,
     GtfsValidationError,
+    check_feed,
     inspect,
     load_feed,
     load_feeds,
@@ -22,9 +25,12 @@ __version__ = "0.0.1"
 
 __all__ = [
     "Feed",
+    "FeedIssue",
+    "FeedReport",
     "FeedSource",
     "GtfsData",
     "GtfsValidationError",
+    "check_feed",
     "inspect",
     "load_feed",
     "load_feeds",

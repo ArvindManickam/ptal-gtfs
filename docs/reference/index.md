@@ -9,8 +9,8 @@
 ## Implemented so far
 
 - **[GTFS loading](gtfs.md)** (`ptal_gtfs.io.gtfs`) — load and merge one or more GTFS
-  feeds, validate them, and build the peak-window frequency table:
-  `FeedSource`, `load_feed`, `load_feeds`, `inspect`.
+  feeds, validate them, build the peak-window frequency table, and report data-quality
+  problems: `FeedSource`, `load_feed`, `load_feeds`, `inspect`, `check_feed`.
 
 ## Planned surface
 

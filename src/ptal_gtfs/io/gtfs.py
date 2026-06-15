@@ -162,6 +162,61 @@ class FeedSummary:
         )
 
 
+# Order issues by severity when printing a report.
+_LEVEL_ORDER = {"error": 0, "warning": 1, "info": 2}
+
+
+@dataclass
+class FeedIssue:
+    """A single data-quality finding from :func:`check_feed`.
+
+    Attributes
+    ----------
+    level:
+        ``"error"`` (blocks a usable PTAL run), ``"warning"`` (degrades quality) or
+        ``"info"`` (informational).
+    code:
+        Short machine-readable identifier, e.g. ``"date_out_of_range"``.
+    message:
+        Human-readable description.
+    """
+
+    level: str
+    code: str
+    message: str
+
+    def __str__(self) -> str:  # pragma: no cover - presentation only
+        return f"[{self.level.upper()}] {self.message}"
+
+
+@dataclass
+class FeedReport:
+    """The result of :func:`check_feed`: a list of issues for one feed."""
+
+    feed: str
+    issues: list[FeedIssue]
+
+    @property
+    def errors(self) -> list[FeedIssue]:
+        return [i for i in self.issues if i.level == "error"]
+
+    @property
+    def warnings(self) -> list[FeedIssue]:
+        return [i for i in self.issues if i.level == "warning"]
+
+    @property
+    def ok(self) -> bool:
+        """True if the feed has no error-level issues (it can produce a PTAL run)."""
+        return not self.errors
+
+    def __str__(self) -> str:  # pragma: no cover - presentation only
+        if not self.issues:
+            return f"Feed '{self.feed}': no issues found."
+        head = f"Feed '{self.feed}': {len(self.errors)} error(s), {len(self.warnings)} warning(s)"
+        ordered = sorted(self.issues, key=lambda i: _LEVEL_ORDER.get(i.level, 9))
+        return "\n".join([head, *(f"  {i}" for i in ordered)])
+
+
 # --------------------------------------------------------------------------------------
 # Public API
 # --------------------------------------------------------------------------------------
@@ -349,6 +404,247 @@ def inspect(
     )
 
 
+def check_feed(
+    source: FeedSource,
+    service_date: _dt.date | str | None = None,
+    *,
+    mode_map: Mapping[int, str] | None = None,
+) -> FeedReport:
+    """Report common GTFS data-quality problems for a single feed.
+
+    This surfaces, up front, the issues that otherwise show up as silent or confusing
+    results downstream — for example a ``service_date`` outside the feed's calendar
+    (which yields zero frequencies), an empty ``direction_id`` (directions merged), or
+    stops with missing coordinates.
+
+    Parameters
+    ----------
+    source:
+        The feed to check (see :class:`FeedSource`).
+    service_date:
+        Optional date to validate against the feed's calendar. When given, the report
+        also flags an out-of-range date and a date with no active trips.
+    mode_map:
+        Optional override of the ``route_type`` → mode mapping (used to flag unmapped
+        ``route_type`` codes).
+
+    Returns
+    -------
+    FeedReport
+        The findings. ``report.ok`` is ``True`` when there are no error-level issues.
+    """
+    reader = _Reader(source.path)
+    try:
+        tables = _read_tables(reader)
+    finally:
+        reader.close()
+
+    issues: list[FeedIssue] = []
+
+    # Required files/fields first — without them, deeper checks are meaningless.
+    try:
+        _validate(tables, feed_key=source.key)
+    except GtfsValidationError as exc:
+        for line in str(exc).splitlines()[1:]:  # skip the summary line
+            issues.append(FeedIssue("error", "missing_required", line.strip(" -")))
+        return FeedReport(source.key, issues)
+
+    stops = tables["stops.txt"]
+    routes = tables["routes.txt"]
+    trips = tables["trips.txt"]
+    stop_times = tables["stop_times.txt"]
+    calendar = tables.get("calendar.txt")
+    calendar_dates = tables.get("calendar_dates.txt")
+
+    # --- calendar span and (optionally) the chosen service date ---
+    span = _calendar_span(calendar, calendar_dates)
+    if span is not None:
+        issues.append(
+            FeedIssue(
+                "info",
+                "calendar_span",
+                f"service calendar spans {_fmt_date(span[0])} to {_fmt_date(span[1])}",
+            )
+        )
+    if service_date is not None:
+        date = _coerce_date(service_date)
+        ymd = int(date.strftime("%Y%m%d"))
+        if span is not None and not (span[0] <= ymd <= span[1]):
+            issues.append(
+                FeedIssue(
+                    "error",
+                    "date_out_of_range",
+                    f"service_date {date} is outside the feed calendar "
+                    f"({_fmt_date(span[0])} to {_fmt_date(span[1])})",
+                )
+            )
+        active = _active_service_ids(calendar, calendar_dates, date)
+        n_active = int(trips["service_id"].isin(active).sum())
+        if n_active == 0:
+            issues.append(
+                FeedIssue(
+                    "error",
+                    "no_active_trips",
+                    f"service_date {date} ({date.strftime('%A')}) has 0 active trips",
+                )
+            )
+        else:
+            issues.append(
+                FeedIssue(
+                    "info",
+                    "active_trips",
+                    f"service_date {date} ({date.strftime('%A')}) has {n_active} active trips",
+                )
+            )
+
+    # --- direction information ---
+    if "direction_id" not in trips.columns:
+        issues.append(
+            FeedIssue(
+                "warning",
+                "no_direction",
+                "trips.txt has no direction_id; the two directions of each route are merged",
+            )
+        )
+    elif int(pd.to_numeric(trips["direction_id"], errors="coerce").notna().sum()) == 0:
+        issues.append(
+            FeedIssue(
+                "warning",
+                "blank_direction",
+                "direction_id is present but blank for all trips; directions are merged",
+            )
+        )
+
+    # --- stop coordinates ---
+    lat = pd.to_numeric(stops["stop_lat"], errors="coerce")
+    lon = pd.to_numeric(stops["stop_lon"], errors="coerce")
+    bad_coords = int(
+        (
+            lat.isna()
+            | lon.isna()
+            | ((lat == 0) & (lon == 0))
+            | (lat.abs() > 90)
+            | (lon.abs() > 180)
+        ).sum()
+    )
+    if bad_coords:
+        issues.append(
+            FeedIssue(
+                "warning",
+                "bad_coords",
+                f"{bad_coords} stop(s) have missing or out-of-range coordinates",
+            )
+        )
+
+    # --- duplicate ids ---
+    for col, df, fname in (("stop_id", stops, "stops"), ("route_id", routes, "routes")):
+        n_dup = int(df[col].duplicated().sum())
+        if n_dup:
+            issues.append(
+                FeedIssue(
+                    "warning",
+                    "duplicate_id",
+                    f"{n_dup} duplicate {col} value(s) in {fname}.txt",
+                )
+            )
+
+    # --- referential integrity ---
+    trip_ids = set(trips["trip_id"])
+    stop_ids = set(stops["stop_id"])
+    orphan_trips = len(trip_ids - set(stop_times["trip_id"]))
+    if orphan_trips:
+        issues.append(
+            FeedIssue(
+                "info",
+                "trips_without_times",
+                f"{orphan_trips} trip(s) have no stop_times entries",
+            )
+        )
+    unknown_trip = int((~stop_times["trip_id"].isin(trip_ids)).sum())
+    if unknown_trip:
+        issues.append(
+            FeedIssue(
+                "warning",
+                "unknown_trip",
+                f"{unknown_trip} stop_times row(s) reference a trip_id not in trips.txt",
+            )
+        )
+    unknown_stop = int((~stop_times["stop_id"].isin(stop_ids)).sum())
+    if unknown_stop:
+        issues.append(
+            FeedIssue(
+                "warning",
+                "unknown_stop",
+                f"{unknown_stop} stop_times row(s) reference a stop_id not in stops.txt",
+            )
+        )
+
+    # --- stop_times timing ---
+    n_rows = len(stop_times)
+    dep_sec = (
+        _parse_gtfs_time(stop_times["departure_time"])
+        if "departure_time" in stop_times.columns
+        else pd.Series([pd.NA] * n_rows, dtype="Int64")
+    )
+    arr_sec = (
+        _parse_gtfs_time(stop_times["arrival_time"])
+        if "arrival_time" in stop_times.columns
+        else pd.Series([pd.NA] * n_rows, dtype="Int64")
+    )
+    both_missing = int((dep_sec.isna() & arr_sec.isna()).sum())
+    if both_missing:
+        issues.append(
+            FeedIssue(
+                "warning",
+                "untimed_stop_times",
+                f"{both_missing} stop_times row(s) have no departure or arrival time",
+            )
+        )
+    past_midnight = int((dep_sec.fillna(arr_sec) >= 86400).sum())
+    if past_midnight:
+        issues.append(
+            FeedIssue(
+                "info",
+                "after_midnight",
+                f"{past_midnight} stop_times after 24:00:00 (valid GTFS, after-midnight service)",
+            )
+        )
+
+    # --- unmapped route types ---
+    modes = _map_modes(routes["route_type"], mode_map or DEFAULT_ROUTE_TYPE_MAP)
+    unmapped = sorted(set(routes.loc[modes == "other", "route_type"].dropna().astype(str)))
+    if unmapped:
+        issues.append(
+            FeedIssue(
+                "info",
+                "unmapped_route_type",
+                f"route_type(s) {unmapped} not recognised; mapped to mode 'other'",
+            )
+        )
+
+    return FeedReport(source.key, issues)
+
+
+def _calendar_span(
+    calendar: pd.DataFrame | None, calendar_dates: pd.DataFrame | None
+) -> tuple[int, int] | None:
+    """Earliest and latest YYYYMMDD dates the feed's calendar covers, or ``None``."""
+    values: list[float] = []
+    if calendar is not None and not calendar.empty:
+        values += pd.to_numeric(calendar["start_date"], errors="coerce").dropna().tolist()
+        values += pd.to_numeric(calendar["end_date"], errors="coerce").dropna().tolist()
+    if calendar_dates is not None and not calendar_dates.empty:
+        values += pd.to_numeric(calendar_dates["date"], errors="coerce").dropna().tolist()
+    if not values:
+        return None
+    return int(min(values)), int(max(values))
+
+
+def _fmt_date(yyyymmdd: int) -> str:
+    s = str(int(yyyymmdd))
+    return f"{s[0:4]}-{s[4:6]}-{s[6:8]}"
+
+
 # --------------------------------------------------------------------------------------
 # Reading GTFS tables (from a .zip or a directory)
 # --------------------------------------------------------------------------------------
@@ -357,8 +653,11 @@ def inspect(
 class _Reader:
     """Reads GTFS ``.txt`` tables from a zip archive or an unzipped directory.
 
-    Only the columns PTAL needs are read (``usecols``), which is the main memory/time
-    saving on the large ``stop_times`` table.
+    GTFS files are located by base name (``stops.txt``), not by exact path, so feeds
+    survive two very common real-world quirks: the ``.txt`` files being wrapped in a
+    top-level folder inside the zip (``DTC_GTFS/stops.txt``), and macOS ``__MACOSX/``
+    resource-fork junk. Only the columns PTAL needs are read (``usecols``), which is the
+    main memory/time saving on the large ``stop_times`` table.
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -366,21 +665,40 @@ class _Reader:
         self._zip: zipfile.ZipFile | None = None
         if self.path.is_file() and self.path.suffix.lower() == ".zip":
             self._zip = zipfile.ZipFile(self.path)
-        elif not self.path.is_dir():
+            entries = self._zip.namelist()
+        elif self.path.is_dir():
+            # Search recursively so a feed unzipped into a subfolder still resolves.
+            entries = [p.relative_to(self.path).as_posix() for p in self.path.rglob("*.txt")]
+        else:
             raise FileNotFoundError(f"GTFS path is not a .zip or directory: {self.path}")
+        # Map each base file name to its actual entry, preferring the shallowest match.
+        self._members = self._index_members(entries)
 
-    def _names(self) -> set[str]:
-        if self._zip is not None:
-            return set(self._zip.namelist())
-        return {p.name for p in self.path.iterdir()}
+    @staticmethod
+    def _index_members(entries: list[str]) -> dict[str, str]:
+        # base name -> (actual entry, folder depth); shallowest depth wins.
+        best: dict[str, tuple[str, int]] = {}
+        for entry in entries:
+            posix = entry.replace("\\", "/")
+            if posix.endswith("/") or "__MACOSX/" in posix:
+                continue  # directory entry or macOS junk folder
+            base = posix.rsplit("/", 1)[-1]
+            if not base or base.startswith("._"):
+                continue  # empty or macOS resource-fork file
+            depth = posix.count("/")
+            # A file at the root wins over the same name nested in a subfolder.
+            if base not in best or depth < best[base][1]:
+                best[base] = (entry, depth)
+        return {base: entry for base, (entry, _) in best.items()}
 
     def has(self, name: str) -> bool:
-        return name in self._names()
+        return name in self._members
 
     def _open(self, name: str):
+        entry = self._members[name]
         if self._zip is not None:
-            return self._zip.open(name)
-        return open(self.path / name, "rb")
+            return self._zip.open(entry)
+        return open(self.path / entry, "rb")
 
     def read(
         self,

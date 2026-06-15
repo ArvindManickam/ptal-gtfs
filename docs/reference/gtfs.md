@@ -49,6 +49,37 @@ GTFS summary for bmtc, metro
   headway min/median/max : 2.0 / 14.0 / 60.0 min
 ```
 
+## Checking feed quality
+
+Real feeds have quirks that otherwise surface as silent or confusing results — a service
+date outside the calendar (zero frequencies), an empty `direction_id` (directions
+merged), stops with missing coordinates. `check_feed()` reports them up front:
+
+```python
+from ptal_gtfs import FeedSource, check_feed
+
+report = check_feed(FeedSource("dtc", "data/dtc_gtfs.zip"), service_date="2024-06-17")
+print(report)
+if not report.ok:        # True when there are no error-level issues
+    raise SystemExit("feed cannot produce a PTAL run")
+```
+
+Example output:
+
+```text
+Feed 'dtc': 0 error(s), 1 warning(s)
+  [WARNING] trips.txt has no direction_id; the two directions of each route are merged
+  [INFO] service calendar spans 2024-01-01 to 2025-01-01
+  [INFO] service_date 2024-06-17 (Monday) has 89393 active trips
+  [INFO] 35238 stop_times after 24:00:00 (valid GTFS, after-midnight service)
+```
+
+Issues have three levels: **error** (blocks a usable run — missing required files, a date
+outside the calendar, a date with no active trips), **warning** (degrades quality —
+blank `direction_id`, bad coordinates, duplicate ids, dangling references) and **info**
+(calendar span, active-trip count, after-midnight service, unmapped `route_type`).
+`report.ok`, `report.errors` and `report.warnings` make it easy to gate a pipeline.
+
 ## What you get back
 
 `load_feeds(...)` returns a [`GtfsData`](#ptal_gtfs.io.gtfs.GtfsData) with three pandas
@@ -85,7 +116,10 @@ three frames.
         - load_feed
         - load_feeds
         - inspect
+        - check_feed
         - Feed
         - GtfsData
         - FeedSummary
+        - FeedReport
+        - FeedIssue
         - GtfsValidationError
