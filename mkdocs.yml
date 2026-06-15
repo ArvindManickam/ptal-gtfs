@@ -61,4 +61,6 @@ nav:
       - Methodology: methodology.md
       - Architecture: architecture.md
       - Data inputs: data.md
-  - API reference: reference/index.md
+  - API reference:
+      - Overview: reference/index.md
+      - GTFS loading: reference/gtfs.md

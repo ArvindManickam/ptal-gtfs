@@ -6,7 +6,15 @@
     by [mkdocstrings](https://mkdocstrings.github.io/). It will fill in as the
     Phase 1 modules land.
 
-The public API is being built around a small surface:
+## Implemented so far
+
+- **[GTFS loading](gtfs.md)** (`ptal_gtfs.io.gtfs`) — load and merge one or more GTFS
+  feeds, validate them, and build the peak-window frequency table:
+  `FeedSource`, `load_feed`, `load_feeds`, `inspect`.
+
+## Planned surface
+
+The eventual top-level API is being built around a small surface (not yet implemented):
 
 - `PTALAnalysis` — load inputs and run a computation.
 - `PTALAnalysis.from_files(...)` — construct from GTFS / OSM / boundary paths.

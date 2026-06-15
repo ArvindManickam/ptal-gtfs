@@ -5,6 +5,10 @@
     It is documented here so the shape of the tool is clear; the implementation
     is in progress.
 
+!!! tip "Available now"
+    The GTFS loading layer is implemented and usable today — see
+    [GTFS loading](reference/gtfs.md) to load feeds and build the peak frequency table.
+
 ## What you need
 
 Three open inputs (see [Data inputs](data.md) for details and Indian sources):
