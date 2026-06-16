@@ -15,8 +15,6 @@ from the **profile** (the config file).
 from __future__ import annotations
 
 import datetime as _dt
-import os
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -250,33 +248,6 @@ class PTALAnalysis:
         gdf = gpd.GeoDataFrame(scored, geometry="geometry", crs=area.crs_metric).to_crs(WGS84)
         step(f"done in {time.time() - start:.1f}s - {len(gdf):,} cells scored")
         return PTALResult(grid=gdf, manifest=self._manifest(area, graph, gdf))
-
-    def run(self, output: str | Path, *, plot: bool = False, verbose: bool | None = None) -> None:
-        """Compute, write outputs, print the band summary, then **exit the process**.
-
-        A convenience for command-line scripts. It ends with ``os._exit(0)`` to sidestep
-        the interpreter-shutdown hang that pandana's native threads can cause on Windows.
-        Because it terminates the process, do **not** call it from a notebook, a web app,
-        or any program that must keep running — use :meth:`compute` and the
-        :class:`PTALResult` methods directly there instead.
-
-        Parameters
-        ----------
-        output:
-            Path prefix for the outputs (writes ``<output>.gpkg``, ``.csv`` and
-            ``_run.yaml``; also ``<output>.html`` when ``plot=True``).
-        plot:
-            Also write the interactive HTML map (avoid at whole-city scale).
-        verbose:
-            Print step-by-step progress (defaults to the analysis's ``verbose``).
-        """
-        result = self.compute(verbose=verbose)
-        result.save(output)
-        if plot:
-            result.plot_map(f"{output}.html")
-        print(result.bands)
-        sys.stdout.flush()
-        os._exit(0)
 
     def _manifest(self, area, graph, gdf) -> dict:
         bands = {str(k): int(v) for k, v in gdf["ptal_band"].value_counts().sort_index().items()}

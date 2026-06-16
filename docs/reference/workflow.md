@@ -37,6 +37,15 @@ analysis.compute(verbose=True)
 # [ptal   34.6s] done in 34.6s - 240 cells scored
 ```
 
+!!! note "Scripts: exit cleanly"
+    In a plain `.py` script the process can hang at the end, because pandana's native
+    threads block interpreter shutdown on Windows. End the script with a hard exit:
+
+    ```python
+    import os
+    os._exit(0)   # last line; scripts only — never in a notebook or web app
+    ```
+
 ## API
 
 ::: ptal_gtfs.analysis

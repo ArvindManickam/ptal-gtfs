@@ -40,21 +40,14 @@ result.bands                                # band distribution
 ```
 
 !!! tip "Running as a `.py` script"
-    Use the `.run(...)` convenience — it computes, writes the outputs, prints the band
-    summary, and **exits cleanly**. (In a plain script the process can otherwise hang at
-    the end, because pandana's native threads block interpreter shutdown on Windows.)
+    In a plain script the process can hang at the very end — pandana's native threads
+    block interpreter shutdown on Windows. End the script with a hard exit:
 
     ```python
-    PTALAnalysis.from_files(
-        gtfs={"dtc": "DTC_bus.zip", "dmrc": "DMRC_metro.zip"},
-        service_date="2024-06-17",
-        boundary="city_boundary.geojson",
-        profile="india",
-    ).run("ptal", verbose=True)
+    import os
+    os._exit(0)   # last line: skip the shutdown hang. Scripts only — never in a
+                  # notebook or web app, since it terminates the process immediately.
     ```
-
-    Don't use `.run()` in a notebook or web app (it terminates the process) — use
-    `compute()` and the `PTALResult` methods there.
 
 ### With a saved OSM network (offline / reproducible)
 
