@@ -30,6 +30,7 @@ analysis = PTALAnalysis.from_files(
     service_date="2024-06-17",                              # the weekday to score
     boundary="city_boundary.geojson",                       # omit -> GTFS stops hull
     profile="india",                                        # or "default" for TfL
+    verbose=True,                                           # print each step's progress
 )
 
 result = analysis.compute()                 # OSM walk network downloaded here (Overpass)
@@ -37,6 +38,23 @@ result.save("ptal")                         # -> ptal.gpkg + ptal.csv + ptal_run
 result.plot_map("ptal.html")                # interactive map
 result.bands                                # band distribution
 ```
+
+!!! tip "Running as a `.py` script"
+    Use the `.run(...)` convenience — it computes, writes the outputs, prints the band
+    summary, and **exits cleanly**. (In a plain script the process can otherwise hang at
+    the end, because pandana's native threads block interpreter shutdown on Windows.)
+
+    ```python
+    PTALAnalysis.from_files(
+        gtfs={"dtc": "DTC_bus.zip", "dmrc": "DMRC_metro.zip"},
+        service_date="2024-06-17",
+        boundary="city_boundary.geojson",
+        profile="india",
+    ).run("ptal", verbose=True)
+    ```
+
+    Don't use `.run()` in a notebook or web app (it terminates the process) — use
+    `compute()` and the `PTALResult` methods there.
 
 ### With a saved OSM network (offline / reproducible)
 
