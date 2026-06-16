@@ -1,8 +1,8 @@
 """Profile schema (pydantic) and loader.
 
-A profile fully parameterises a PTAL run. Today it covers the parameters the core engine
-needs — walk speed, the reliability model, and the band table — and is extended as more of
-the methodology becomes configurable.
+A profile fully parameterises a PTAL run: the peak window, grid spacing, per-mode walk
+access thresholds, walk speed, the reliability model, and the band table. Only the *inputs*
+(feed paths, service date, boundary, output) stay outside the profile.
 """
 
 from __future__ import annotations
@@ -11,9 +11,22 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 _PROFILE_DIR = Path(__file__).parent / "profiles"
+
+
+class PeakWindow(BaseModel):
+    """AM peak window the frequency is measured in (methodology §1.4)."""
+
+    start: str = "08:15"
+    end: str = "09:15"
+
+
+class Grid(BaseModel):
+    """POI grid settings (methodology §1.1)."""
+
+    spacing_m: float = 100.0
 
 
 class Reliability(BaseModel):
@@ -46,6 +59,10 @@ class Profile(BaseModel):
 
     name: str
     walk_speed_m_per_min: float = 80.0
+    peak_window: PeakWindow = Field(default_factory=PeakWindow)
+    grid: Grid = Field(default_factory=Grid)
+    # Per-mode maximum network walk distance to a stop (the SAP access threshold), metres.
+    access_m: dict[str, float] = Field(default_factory=dict)
     reliability: Reliability
     bands: Bands
 

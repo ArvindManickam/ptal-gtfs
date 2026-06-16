@@ -24,6 +24,19 @@ def test_india_profile_is_deviation():
     assert p.reliability.by_mode["metro"] == 0.05
 
 
+def test_profile_carries_run_parameters():
+    india = load_profile("india")
+    assert india.peak_window.start == "08:15"
+    assert india.peak_window.end == "09:15"
+    assert india.grid.spacing_m == 100
+    assert india.access_m["bus"] == 500
+    assert india.access_m["metro"] == 2000
+    # TfL access thresholds: 8 min bus / 12 min rail at 80 m/min.
+    default = load_profile("default")
+    assert default.access_m["bus"] == 640
+    assert default.access_m["metro"] == 960
+
+
 def test_band_edges_parse_infinity():
     p = load_profile("default")
     assert p.bands.edges[-1] == float("inf")

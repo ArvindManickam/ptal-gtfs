@@ -36,6 +36,8 @@ __all__ = [
     "FeedSource",
     "GtfsData",
     "GtfsValidationError",
+    "PTALAnalysis",
+    "PTALResult",
     "Profile",
     "check_feed",
     "compute_ptal",
@@ -47,3 +49,15 @@ __all__ = [
     "profile_feeds",
     "__version__",
 ]
+
+
+def __getattr__(name: str):
+    # Expose the top-level workflow lazily so `import ptal_gtfs` does not pull the heavy
+    # geo stack (osmnx/pandana) unless PTALAnalysis/PTALResult are actually used.
+    if name in ("PTALAnalysis", "PTALResult"):
+        from . import analysis
+
+        globals()["PTALAnalysis"] = analysis.PTALAnalysis
+        globals()["PTALResult"] = analysis.PTALResult
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

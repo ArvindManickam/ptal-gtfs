@@ -6,6 +6,15 @@ name: india
 # Walk speed (D1). Left at the TfL value for now; revise with an Indian citation.
 walk_speed_m_per_min: 80.0
 
+# AM peak window (D4). Indian peaks are often broader/later; left at TfL for now.
+peak_window: { start: "08:15", end: "09:15" }
+
+# POI grid spacing in metres.
+grid: { spacing_m: 100 }
+
+# Maximum network walk distance to a stop per mode, metres (D2). Bus short, rail/metro long.
+access_m: { bus: 500, metro: 2000, rail: 2000, tram: 800 }
+
 # Deviation-based reliability (methodology §3.3, D3): K scales with the scheduled headway,
 # so AWT = SWT + headway × factor. Headway adherence on Indian systems is worse for buses
 # than for rail-based modes, mirroring the TfL grouping (bus high, rail/metro/tram low).

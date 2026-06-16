@@ -6,6 +6,16 @@ name: default
 # Walk speed in metres per minute (methodology §1.2; TfL 80 m/min ≈ 4.8 km/h).
 walk_speed_m_per_min: 80.0
 
+# AM peak window the frequency is measured in (methodology §1.4; TfL 08:15-09:15).
+peak_window: { start: "08:15", end: "09:15" }
+
+# POI grid spacing in metres (methodology §1.1; TfL 100 m).
+grid: { spacing_m: 100 }
+
+# Maximum network walk distance to a stop per mode, metres (TfL: 8 min bus, 12 min rail
+# at 80 m/min -> 640 m / 960 m).
+access_m: { bus: 640, metro: 960, rail: 960, tram: 960 }
+
 # Reliability term K added to SWT (methodology §1.4).
 reliability:
   kind: static            # AWT = SWT + K

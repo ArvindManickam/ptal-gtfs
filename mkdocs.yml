@@ -66,6 +66,7 @@ nav:
       - Data inputs: data.md
   - API reference:
       - Overview: reference/index.md
+      - Workflow: reference/workflow.md
       - GTFS loading: reference/gtfs.md
       - Walk network: reference/network.md
       - PTAL & profiles: reference/ptal.md

@@ -8,6 +8,9 @@
 
 ## Implemented so far
 
+- **[Workflow](workflow.md)** (`ptal_gtfs.analysis`) — the top-level entry point:
+  `PTALAnalysis.from_files(...).compute()` → `PTALResult` (`save`, `plot_map`, `to_geopackage`).
+  OSM is downloaded automatically; the profile drives the method.
 - **[GTFS loading](gtfs.md)** (`ptal_gtfs.io.gtfs`) — load and merge one or more GTFS
   feeds, validate them, build the peak-window frequency table, report data-quality
   problems, and profile a feed's statistics/distributions: `FeedSource`, `load_feed`,
@@ -20,15 +23,11 @@
   chain (walk time → SWT → AWT → EDF → AI → band) and the config profiles that select the
   method (`default` static vs `india` deviation): `compute_ptal`, `load_profile`, `Profile`.
 
-## Planned surface
+## Still to come
 
-The eventual top-level API is being built around a small surface (not yet implemented):
-
-- `PTALAnalysis` — load inputs and run a computation.
-- `PTALAnalysis.from_files(...)` — construct from GTFS / OSM / boundary paths.
-- `PTALAnalysis.compute()` → `PTALResult`.
-- `PTALResult.to_geopackage(...)`, `PTALResult.plot_map(...)` — outputs.
-- `load_profile(...)` — load a configuration profile (`default`, `india`, …).
+- **IPT layer** (`io.ipt`) — informal transport (shared autos, e-rickshaws) as a mode.
+- **Outputs** — GeoTIFF/GeoParquet export, aggregations (ward/zone, population-weighted).
+- **Config** — fold the `route_type` → mode mapping and walkability options into profiles.
 
 ## Wiring up a module (once code exists)
 

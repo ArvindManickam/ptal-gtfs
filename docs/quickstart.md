@@ -1,26 +1,20 @@
 # Quickstart
 
-!!! warning "Planned API"
-    `ptal-gtfs` is pre-alpha. The workflow below is the **intended** public API.
-    It is documented here so the shape of the tool is clear; the implementation
-    is in progress.
-
-!!! tip "Available now"
-    The GTFS loading layer is implemented and usable today — see
-    [GTFS loading](reference/gtfs.md) to load feeds and build the peak frequency table.
+!!! note "Pre-alpha"
+    `ptal-gtfs` is pre-alpha; parameter values in the `india` profile are placeholders
+    pending the open methodology decisions. The workflow below works today.
 
 ## What you need
 
-Three open inputs (see [Data inputs](data.md) for details and Indian sources):
+You only need **two** inputs — the OSM walking network is downloaded automatically:
 
 | Input | Format | What it is |
 | --- | --- | --- |
-| GTFS feed | `.zip` | Routes, stops and timetables |
-| OSM extract | `.pbf` | The pedestrian walking network |
-| Study-area boundary | `.geojson` / `.gpkg` | The area to score |
+| GTFS feed(s) | `.zip` or unzipped dir | Routes, stops and timetables (one per operator) |
+| Study-area boundary | `.geojson` / `.gpkg` / … | The area to score (optional — see below) |
 
-Optional layers — informal transport (IPT), population, jobs — can be added for
-richer inference.
+If you omit the boundary, the study area is the **convex hull of the GTFS stops**.
+Optional layers — informal transport (IPT), population, jobs — come later.
 
 ## Score a city in a few lines
 
@@ -28,16 +22,20 @@ richer inference.
 from ptal_gtfs import PTALAnalysis
 
 analysis = PTALAnalysis.from_files(
-    gtfs="city_gtfs.zip",
-    osm="city.osm.pbf",
-    boundary="city_boundary.geojson",
-    profile="india",       # or "default" to reproduce TfL exactly
+    gtfs={"dtc": "DTC_bus.zip", "dmrc": "DMRC_metro.zip"},  # one entry per operator
+    service_date="2024-06-17",                              # the weekday to score
+    boundary="city_boundary.geojson",                       # omit -> GTFS stops hull
+    profile="india",                                        # or "default" for TfL
 )
 
-result = analysis.compute()
-result.to_geopackage("ptal.gpkg")   # PTAL grid for GIS
-result.plot_map("ptal.html")        # interactive map
+result = analysis.compute()                 # OSM is downloaded automatically
+result.save("ptal")                         # -> ptal.gpkg + ptal.csv + ptal_run.yaml
+result.plot_map("ptal.html")                # interactive map
+result.bands                                # band distribution
 ```
+
+`result.save(...)` also writes **`ptal_run.yaml`** — a manifest recording the inputs,
+the full resolved profile and the package version, so any run is reproducible.
 
 ## What happens
 
