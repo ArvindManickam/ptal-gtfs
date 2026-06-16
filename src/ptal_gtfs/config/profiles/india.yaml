@@ -1,0 +1,23 @@
+# India profile — adapts the TfL method for Indian conditions.
+# Parameter values are placeholders pending the open decisions (D1-D6) and their citations
+# in docs/methodology.md.
+name: india
+
+# Walk speed (D1). Left at the TfL value for now; revise with an Indian citation.
+walk_speed_m_per_min: 80.0
+
+# Deviation-based reliability (methodology §3.3, D3): K scales with the scheduled headway,
+# so AWT = SWT + headway × factor. Headway adherence on Indian systems is worse for buses
+# than for rail-based modes, mirroring the TfL grouping (bus high, rail/metro/tram low).
+reliability:
+  kind: deviation         # AWT = SWT + headway × factor
+  by_mode:
+    bus: 0.2
+    metro: 0.05
+    rail: 0.05            # placeholder (grouped with metro), D3
+    tram: 0.05            # placeholder (grouped with metro), D3
+
+# Keep the TfL band thresholds for international comparability (D5).
+bands:
+  edges: [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 40.0, .inf]
+  labels: ["1a", "1b", "2", "3", "4", "5", "6a", "6b"]

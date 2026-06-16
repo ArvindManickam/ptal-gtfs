@@ -1,0 +1,21 @@
+# Default profile — reproduces the Transport for London PTAL method exactly.
+# This profile is sacred: it must keep matching TfL (golden tests). Indian adaptations
+# go in india.yaml or derived profiles, never here.
+name: default
+
+# Walk speed in metres per minute (methodology §1.2; TfL 80 m/min ≈ 4.8 km/h).
+walk_speed_m_per_min: 80.0
+
+# Reliability term K added to SWT (methodology §1.4).
+reliability:
+  kind: static            # AWT = SWT + K
+  by_mode:
+    bus: 2.0              # TfL bus
+    metro: 0.75           # TfL Underground
+    rail: 0.75            # TfL rail
+    tram: 0.75            # TfL tram
+
+# PTAL band table (methodology §1.7).
+bands:
+  edges: [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 40.0, .inf]
+  labels: ["1a", "1b", "2", "3", "4", "5", "6a", "6b"]

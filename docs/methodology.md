@@ -140,9 +140,16 @@ corridor at a configurable spacing.
 ### 3.3 Reliability
 
 Headway adherence on Indian bus systems is generally worse than London's, which
-raises true average waits above SWT. The reliability factor `K` is per mode in the
-profile; where observed headway data (AVL/GPS) is available, an irregularity-based
-AWT — `AWT = (E[h]/2) × (1 + CV(h)²) ` — can be enabled instead of `SWT + K` (D3).
+raises true average waits above SWT. The profile selects the reliability model
+(`reliability.kind`):
+
+- **static** (the `default`/TfL method): `AWT = SWT + K`, a fixed per-mode `K`
+  (TfL: bus 2.0 min, rail/Underground/tram 0.75 min).
+- **deviation** (the `india` profile): `K` scales with the scheduled headway,
+  `AWT = SWT + headway × deviation_factor`, with a per-mode deviation factor (placeholders:
+  bus 0.2, rail/metro/tram 0.05 — pending D3). This is a linear form of the irregularity
+  wait `AWT = (E[h]/2) × (1 + CV(h)²)` (the added term being `(h/2)·CV²`); where observed
+  headway data (AVL/GPS) is available, the full CV form can replace it (D3).
 
 ### 3.4 Peak window
 

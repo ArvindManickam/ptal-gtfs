@@ -8,6 +8,7 @@ See ``docs/methodology.md`` for the definitive description of what is computed.
 
 from __future__ import annotations
 
+from .config import Profile, load_profile
 from .io.gtfs import (
     Feed,
     FeedIssue,
@@ -23,6 +24,7 @@ from .io.gtfs import (
     profile_feed,
     profile_feeds,
 )
+from .ptal import compute_ptal
 
 __version__ = "0.0.1"
 
@@ -34,10 +36,13 @@ __all__ = [
     "FeedSource",
     "GtfsData",
     "GtfsValidationError",
+    "Profile",
     "check_feed",
+    "compute_ptal",
     "inspect",
     "load_feed",
     "load_feeds",
+    "load_profile",
     "profile_feed",
     "profile_feeds",
     "__version__",

@@ -16,6 +16,9 @@
   `ptal_gtfs.network`) — load a study-area boundary, generate the POI grid, build the OSM
   walk graph, and wire centroids/stops into one routable pandana network:
   `load_boundary`, `make_grid`, `build_walk_graph`, `build_walk_network`, `nearest_stops`.
+- **[PTAL & profiles](ptal.md)** (`ptal_gtfs.ptal`, `ptal_gtfs.config`) — the TfL formula
+  chain (walk time → SWT → AWT → EDF → AI → band) and the config profiles that select the
+  method (`default` static vs `india` deviation): `compute_ptal`, `load_profile`, `Profile`.
 
 ## Planned surface
 
