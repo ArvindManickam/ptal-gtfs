@@ -40,9 +40,15 @@ WT = network_walk_distance / walk_speed        (TfL: walk_speed = 80 m/min)
 
 ### 1.3 Route de-duplication
 
-A route may be reachable at several SAPs. Each **route** (TfL: each route+direction
-for bus; each station for rail) is counted **once**, at the SAP giving the highest
-EDF (in practice, the shortest total access time).
+A route may be reachable at several SAPs (e.g. the same bus route passing several nearby
+stops). To avoid double-counting, each **route + direction** is counted **once** per grid
+point — at the SAP giving the highest EDF (in practice, the shortest total access time).
+
+This rule applies to **every mode**: the de-duplication unit is the route + direction as
+defined by the feed. Where a feed marks each rail/metro line as a separate route (as Indian
+metro feeds do), each line counts as a distinct route at a shared station. (TfL's exact
+rule for rail SAP counting is to be confirmed against the source when the golden test is
+built; until then this is the rule the implementation follows.)
 
 ### 1.4 Waiting time
 
