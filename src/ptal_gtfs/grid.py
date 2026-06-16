@@ -16,6 +16,7 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import shapely
 from shapely.geometry.base import BaseGeometry
 
 WGS84 = "EPSG:4326"
@@ -94,8 +95,17 @@ def boundary_from_stops(stops: pd.DataFrame, *, buffer_m: float = 500.0) -> Stud
     return StudyArea(polygon=polygon, crs_metric=crs_metric, polygon_metric=hull_metric)
 
 
-def make_grid(area: StudyArea, *, spacing_m: float = 100.0) -> gpd.GeoDataFrame:
-    """Generate a regular point grid (the POIs) clipped to the study area.
+def make_grid(
+    area: StudyArea, *, spacing_m: float = 100.0, cell: bool = False
+) -> gpd.GeoDataFrame:
+    """Generate a regular grid of POIs clipped to the study area.
+
+    Each grid location is a Point of Interest. By default the geometry is the **centroid
+    point**; with ``cell=True`` it is the **square cell** of side ``spacing_m`` (e.g. a
+    100 m cell = 10,000 m²) centred on that centroid — handy for choropleth maps. Either
+    way the centroid is kept in ``x``/``y`` (metres) and ``lon``/``lat`` (WGS84), and a
+    given area/spacing always yields the same ``poi_id``s, so a centroid grid and a cell
+    grid share ids and can be joined (cells for the fill, centroids for routing/labels).
 
     Parameters
     ----------
@@ -103,30 +113,41 @@ def make_grid(area: StudyArea, *, spacing_m: float = 100.0) -> gpd.GeoDataFrame:
         The study area.
     spacing_m:
         Grid spacing in metres (methodology default 100 m).
+    cell:
+        If ``True``, the geometry is the square cell polygon; otherwise the centroid point.
 
     Returns
     -------
     geopandas.GeoDataFrame
-        Columns ``poi_id``, ``geometry`` (metric points), ``x``/``y`` (metres) and
-        ``lon``/``lat`` (WGS84), in ``area.crs_metric``.
+        Columns ``poi_id``, ``geometry`` (centroid point or square cell), ``x``/``y``
+        (centroid, metres) and ``lon``/``lat`` (centroid, WGS84), in ``area.crs_metric``.
     """
     min_x, min_y, max_x, max_y = area.polygon_metric.bounds
     xs = np.arange(min_x, max_x + spacing_m, spacing_m)
     ys = np.arange(min_y, max_y + spacing_m, spacing_m)
     grid_x, grid_y = np.meshgrid(xs, ys)
 
-    pts = gpd.GeoSeries(gpd.points_from_xy(grid_x.ravel(), grid_y.ravel()), crs=area.crs_metric)
-    # Single vectorised containment test (shapely 2 / GEOS) — no per-point loop.
-    inside = pts.within(area.polygon_metric)
-    pts = pts[inside.to_numpy()].reset_index(drop=True)
+    centroids = gpd.GeoSeries(
+        gpd.points_from_xy(grid_x.ravel(), grid_y.ravel()), crs=area.crs_metric
+    )
+    # Keep cells/points whose centroid is inside the boundary (one vectorised test).
+    centroids = centroids[centroids.within(area.polygon_metric).to_numpy()]
+    cx = centroids.x.to_numpy()
+    cy = centroids.y.to_numpy()
 
-    lonlat = pts.to_crs(WGS84)
+    if cell:
+        half = spacing_m / 2
+        geometry = shapely.box(cx - half, cy - half, cx + half, cy + half)  # vectorised
+    else:
+        geometry = centroids.values
+
+    lonlat = centroids.to_crs(WGS84)
     return gpd.GeoDataFrame(
         {
-            "poi_id": np.arange(len(pts), dtype="int64"),
-            "geometry": pts.values,
-            "x": pts.x.to_numpy(),
-            "y": pts.y.to_numpy(),
+            "poi_id": np.arange(len(cx), dtype="int64"),
+            "geometry": geometry,
+            "x": cx,
+            "y": cy,
             "lon": lonlat.x.to_numpy(),
             "lat": lonlat.y.to_numpy(),
         },

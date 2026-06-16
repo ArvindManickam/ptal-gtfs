@@ -35,6 +35,23 @@ def test_finer_spacing_gives_more_points():
     assert len(make_grid(area, spacing_m=100)) > len(make_grid(area, spacing_m=300))
 
 
+def test_make_grid_cells_share_ids_with_centroids():
+    area = load_boundary(BOUNDARY)
+    pts = make_grid(area, spacing_m=100)
+    cells = make_grid(area, spacing_m=100, cell=True)
+
+    # Same lattice -> same count and the same poi_ids (so cells and centroids can be joined).
+    assert len(pts) == len(cells)
+    assert list(pts["poi_id"]) == list(cells["poi_id"])
+    # Each cell is a 100 m square => 10,000 m².
+    assert cells.geometry.area.round(2).eq(10_000.0).all()
+    # The centroid coordinates lie inside the corresponding cell.
+    centroid_pts = gpd.GeoSeries(gpd.points_from_xy(cells.x, cells.y), crs=cells.crs)
+    assert cells.geometry.contains(centroid_pts).all()
+    # Centroid coordinates match between the two grids.
+    assert (pts["x"].to_numpy() == cells["x"].to_numpy()).all()
+
+
 def test_boundary_from_stops_contains_stops():
     stops = pd.DataFrame(
         {"stop_lon": [77.589, 77.593, 77.591], "stop_lat": [12.969, 12.969, 12.973]}

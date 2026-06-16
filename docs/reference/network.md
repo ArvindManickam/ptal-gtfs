@@ -65,7 +65,10 @@ the whole service-area footprint — fine, just larger than a tight boundary.
 
 - **`StudyArea`** holds the boundary in WGS84 plus an auto-selected metric (UTM) CRS;
   all distances downstream are metres.
-- **`make_grid`** lays a regular point lattice over the area and clips it to the polygon.
+- **`make_grid`** lays a regular lattice over the area and clips it to the polygon —
+  centroid **points** by default, or `cell=True` for 100 m **square cells** (10,000 m²).
+  Both carry the centroid in `x`/`y`/`lon`/`lat` and share the same `poi_id`s, so you can
+  route on the centroids and shade the cells in a choropleth.
 - **`build_walk_graph`** uses osmnx to build a routable graph (largest connected
   component, projected, edge `length` in metres). Reading `.osm.pbf` directly is out of
   scope for now (would need `pyrosm`); use Overpass or a saved GraphML.
