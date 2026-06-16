@@ -26,6 +26,17 @@ area → 100 m cell grid → OSM walk graph → per-mode SAP (`access_m` from th
 `compute_ptal` — and records a **`run.yaml` manifest** (inputs, full resolved profile,
 package version, summary) for reproducibility.
 
+Pass **`verbose=True`** to `from_files(...)` or `compute()` to print each step with the
+elapsed time — handy for seeing where a long run is spending its time (usually the OSM
+download, or the grid size at whole-city scale):
+
+```python
+analysis.compute(verbose=True)
+# [ptal    0.0s] loading GTFS feeds + peak frequencies ...
+# [ptal   31.3s] downloading OSM walk network from Overpass (usually the slow part) ...
+# [ptal   34.6s] done in 34.6s - 240 cells scored
+```
+
 ## API
 
 ::: ptal_gtfs.analysis

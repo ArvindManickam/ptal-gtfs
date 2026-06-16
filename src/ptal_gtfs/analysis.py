@@ -15,6 +15,7 @@ from the **profile** (the config file).
 from __future__ import annotations
 
 import datetime as _dt
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -125,6 +126,7 @@ class PTALAnalysis:
     osm: str | Path = "overpass"
     k_centroid: int = 3
     k_stop: int = 3
+    verbose: bool = False
 
     @classmethod
     def from_files(
@@ -137,6 +139,7 @@ class PTALAnalysis:
         osm: str | Path = "overpass",
         k_centroid: int = 3,
         k_stop: int = 3,
+        verbose: bool = False,
     ) -> PTALAnalysis:
         """Configure a run from files.
 
@@ -164,17 +167,32 @@ class PTALAnalysis:
             osm=osm,
             k_centroid=k_centroid,
             k_stop=k_stop,
+            verbose=verbose,
         )
 
-    def compute(self) -> PTALResult:
-        """Run the full pipeline and return the scored grid + manifest."""
+    def compute(self, *, verbose: bool | None = None) -> PTALResult:
+        """Run the full pipeline and return the scored grid + manifest.
+
+        Pass ``verbose=True`` (or set it on the analysis) to print each step with the
+        elapsed time — useful for seeing where a long run is spending its time (usually the
+        OSM download or, at whole-city scale, the grid size).
+        """
+        verbose = self.verbose if verbose is None else verbose
+        start = time.time()
+
+        def step(msg: str) -> None:
+            if verbose:
+                print(f"[ptal {time.time() - start:6.1f}s] {msg}", flush=True)
+
         prof = self.profile
+        step("loading GTFS feeds + peak frequencies ...")
         gtfs = load_feeds(
             self.feeds,
             self.service_date,
             peak_start=prof.peak_window.start,
             peak_end=prof.peak_window.end,
         )
+        step(f"  {len(gtfs.stops):,} stops, {len(gtfs.routes):,} routes")
 
         known = set(prof.reliability.by_mode)
         freqs = gtfs.frequencies[gtfs.frequencies["mode"].isin(known)]
@@ -184,9 +202,24 @@ class PTALAnalysis:
                 "and that route_type maps to a mode the profile covers"
             )
 
-        area = load_boundary(self.boundary) if self.boundary else boundary_from_stops(gtfs.stops)
+        if self.boundary:
+            step(f"loading boundary {self.boundary} ...")
+            area = load_boundary(self.boundary)
+        else:
+            step("building study area from the GTFS stops hull ...")
+            area = boundary_from_stops(gtfs.stops)
+        step(f"  study area ~ {area.polygon_metric.area / 1e6:,.0f} km^2")
+
+        step(f"generating {prof.grid.spacing_m:g} m cell grid ...")
         grid = make_grid(area, spacing_m=prof.grid.spacing_m, cell=True)
+        step(f"  {len(grid):,} grid cells")
+
+        if str(self.osm) == "overpass":
+            step("downloading OSM walk network from Overpass (usually the slow part) ...")
+        else:
+            step(f"loading OSM walk graph {self.osm} ...")
         graph = build_walk_graph(area, source=self.osm)
+        step(f"  walk graph {graph.number_of_nodes():,} nodes / {graph.number_of_edges():,} edges")
 
         thresholds = {m: prof.access_m.get(m, _DEFAULT_ACCESS_M) for m in set(freqs["mode"])}
         stop_pts = gpd.GeoSeries(
@@ -195,19 +228,25 @@ class PTALAnalysis:
         near = stop_pts.within(area.polygon_metric.buffer(max(thresholds.values()))).to_numpy()
         stops_near = gtfs.stops[near]
 
+        step(f"building walk network ({len(stops_near):,} stops + connectors) ...")
         walk = build_walk_network(
             graph, grid, stops_near, k_centroid=self.k_centroid, k_stop=self.k_stop
         )
+        step("computing nearest stops per grid point (SAP) ...")
         access = nearest_stops(
             walk,
             thresholds,
             max_n=_MAX_STOPS_PER_POI,
             stop_modes=freqs[["stop_id", "mode"]].drop_duplicates(),
         )
+        step(f"  {len(access):,} (poi, stop) access pairs")
+
+        step("computing PTAL (WT -> SWT -> AWT -> EDF -> AI -> band) ...")
         ptal = compute_ptal(access, freqs, profile=prof, all_poi_ids=grid["poi_id"].tolist())
 
         scored = grid[["poi_id", "lon", "lat", "geometry"]].merge(ptal, on="poi_id", how="left")
         gdf = gpd.GeoDataFrame(scored, geometry="geometry", crs=area.crs_metric).to_crs(WGS84)
+        step(f"done in {time.time() - start:.1f}s - {len(gdf):,} cells scored")
         return PTALResult(grid=gdf, manifest=self._manifest(area, graph, gdf))
 
     def _manifest(self, area, graph, gdf) -> dict:
