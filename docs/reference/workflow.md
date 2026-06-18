@@ -37,6 +37,9 @@ analysis.compute(verbose=True)
 # [ptal   34.6s] done in 34.6s - 240 cells scored
 ```
 
+`result.save(..., verbose=True)` likewise logs each output file before and after it is
+written (handy if a write is slow or blocked).
+
 !!! note "Scripts: exit cleanly"
     In a plain `.py` script the process can hang at the end, because pandana's native
     threads block interpreter shutdown on Windows. End the script with a hard exit:

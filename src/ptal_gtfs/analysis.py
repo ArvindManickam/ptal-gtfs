@@ -106,12 +106,26 @@ class PTALResult:
         fmap.save(str(path))
         return Path(path)
 
-    def save(self, prefix: str | Path) -> Path:
-        """Write the GeoPackage, CSV and run.yaml manifest using a common path prefix."""
+    def save(self, prefix: str | Path, *, verbose: bool = False) -> Path:
+        """Write the GeoPackage, CSV and run.yaml manifest using a common path prefix.
+
+        Pass ``verbose=True`` to print a line before and after each file is written
+        (with the elapsed time), so a slow or blocked write is obvious.
+        """
         prefix = Path(prefix)
-        self.to_geopackage(prefix.with_name(prefix.name + ".gpkg"))
-        self.to_csv(prefix.with_name(prefix.name + ".csv"))
-        self.to_manifest(prefix.with_name(prefix.name + "_run.yaml"))
+        n = len(self.grid)
+
+        def write(label: str, path: Path, fn) -> None:
+            if verbose:
+                print(f"[ptal] writing {label}: {path} ({n:,} cells) ...", flush=True)
+            start = time.time()
+            fn(path)
+            if verbose:
+                print(f"[ptal]   wrote {path} in {time.time() - start:.1f}s", flush=True)
+
+        write("GeoPackage", prefix.with_name(prefix.name + ".gpkg"), self.to_geopackage)
+        write("CSV", prefix.with_name(prefix.name + ".csv"), self.to_csv)
+        write("manifest", prefix.with_name(prefix.name + "_run.yaml"), self.to_manifest)
         return prefix
 
 
