@@ -114,14 +114,16 @@ class PTALResult:
         """
         prefix = Path(prefix)
         n = len(self.grid)
+        start = time.time()
+
+        def step(msg: str) -> None:
+            if verbose:
+                print(f"[ptal {time.time() - start:6.1f}s] {msg}", flush=True)
 
         def write(label: str, path: Path, fn) -> None:
-            if verbose:
-                print(f"[ptal] writing {label}: {path} ({n:,} cells) ...", flush=True)
-            start = time.time()
+            step(f"writing {label}: {path} ({n:,} cells) ...")
             fn(path)
-            if verbose:
-                print(f"[ptal]   wrote {path} in {time.time() - start:.1f}s", flush=True)
+            step(f"  wrote {path}")
 
         write("GeoPackage", prefix.with_name(prefix.name + ".gpkg"), self.to_geopackage)
         write("CSV", prefix.with_name(prefix.name + ".csv"), self.to_csv)
