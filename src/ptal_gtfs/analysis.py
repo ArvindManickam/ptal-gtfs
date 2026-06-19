@@ -64,6 +64,9 @@ class PTALResult:
 
     grid: gpd.GeoDataFrame  # cells, ai_<mode>, ai, ptal_band (WGS84)
     manifest: dict
+    # When produced by compute(), the time.time() at which compute started — so save()
+    # continues the same elapsed clock and any gap between compute and save is visible.
+    clock_start: float | None = None
 
     @property
     def bands(self):
@@ -114,15 +117,12 @@ class PTALResult:
         """
         prefix = Path(prefix)
         n = len(self.grid)
-        start = time.time()
-        last = start
+        # Continue compute()'s clock if available, so the gap between compute and save shows.
+        start = self.clock_start if self.clock_start is not None else time.time()
 
         def step(msg: str) -> None:
-            nonlocal last
             if verbose:
-                now = time.time()
-                print(f"[ptal {now - start:7.1f}s +{now - last:6.1f}s] {msg}", flush=True)
-                last = now
+                print(f"[ptal {time.time() - start:7.1f}s] {msg}", flush=True)
 
         def write(label: str, path: Path, fn) -> None:
             step(f"writing {label}: {path} ({n:,} cells) ...")
@@ -199,15 +199,10 @@ class PTALAnalysis:
         """
         verbose = self.verbose if verbose is None else verbose
         start = time.time()
-        last = start
 
         def step(msg: str) -> None:
-            nonlocal last
             if verbose:
-                now = time.time()
-                # cumulative time, and +delta since the previous line (the step's duration)
-                print(f"[ptal {now - start:7.1f}s +{now - last:6.1f}s] {msg}", flush=True)
-                last = now
+                print(f"[ptal {time.time() - start:7.1f}s] {msg}", flush=True)
 
         prof = self.profile
         step("loading GTFS feeds + peak frequencies ...")
@@ -271,8 +266,10 @@ class PTALAnalysis:
 
         scored = grid[["poi_id", "lon", "lat", "geometry"]].merge(ptal, on="poi_id", how="left")
         gdf = gpd.GeoDataFrame(scored, geometry="geometry", crs=area.crs_metric).to_crs(WGS84)
+        step("building manifest ...")
+        manifest = self._manifest(area, graph, gdf)
         step(f"done in {time.time() - start:.1f}s - {len(gdf):,} cells scored")
-        return PTALResult(grid=gdf, manifest=self._manifest(area, graph, gdf))
+        return PTALResult(grid=gdf, manifest=manifest, clock_start=start)
 
     def _manifest(self, area, graph, gdf) -> dict:
         bands = {str(k): int(v) for k, v in gdf["ptal_band"].value_counts().sort_index().items()}
