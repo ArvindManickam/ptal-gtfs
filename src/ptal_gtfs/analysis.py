@@ -115,10 +115,14 @@ class PTALResult:
         prefix = Path(prefix)
         n = len(self.grid)
         start = time.time()
+        last = start
 
         def step(msg: str) -> None:
+            nonlocal last
             if verbose:
-                print(f"[ptal {time.time() - start:6.1f}s] {msg}", flush=True)
+                now = time.time()
+                print(f"[ptal {now - start:7.1f}s +{now - last:6.1f}s] {msg}", flush=True)
+                last = now
 
         def write(label: str, path: Path, fn) -> None:
             step(f"writing {label}: {path} ({n:,} cells) ...")
@@ -195,10 +199,15 @@ class PTALAnalysis:
         """
         verbose = self.verbose if verbose is None else verbose
         start = time.time()
+        last = start
 
         def step(msg: str) -> None:
+            nonlocal last
             if verbose:
-                print(f"[ptal {time.time() - start:6.1f}s] {msg}", flush=True)
+                now = time.time()
+                # cumulative time, and +delta since the previous line (the step's duration)
+                print(f"[ptal {now - start:7.1f}s +{now - last:6.1f}s] {msg}", flush=True)
+                last = now
 
         prof = self.profile
         step("loading GTFS feeds + peak frequencies ...")

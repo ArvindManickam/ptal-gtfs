@@ -30,11 +30,16 @@ Pass **`verbose=True`** to `from_files(...)` or `compute()` to print each step w
 elapsed time — handy for seeing where a long run is spending its time (usually the OSM
 download, or the grid size at whole-city scale):
 
+Each line shows the **cumulative** time and the **`+delta`** since the previous line (the
+step's own duration), so the slow step is obvious at a glance:
+
 ```python
 analysis.compute(verbose=True)
-# [ptal    0.0s] loading GTFS feeds + peak frequencies ...
-# [ptal   31.3s] downloading OSM walk network from Overpass (usually the slow part) ...
-# [ptal   34.6s] done in 34.6s - 240 cells scored
+# [ptal     0.0s +  0.0s] loading GTFS feeds + peak frequencies ...
+# [ptal    31.3s + 31.3s]   10,821 stops, 2,439 routes
+# [ptal    31.3s +  0.0s] downloading OSM walk network from Overpass (usually the slow part) ...
+# [ptal    99.0s + 67.7s]   walk graph 349,106 nodes / 976,548 edges
+# [ptal   521.9s +  5.0s] done in 521.9s - 250,171 cells scored
 ```
 
 `result.save(..., verbose=True)` likewise logs each output file before and after it is
